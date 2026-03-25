@@ -69,7 +69,7 @@ func getDuration(key string, fallback time.Duration) (time.Duration, error) {
 
 	duration, err := time.ParseDuration(value)
 	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", key, err)
+		return 0, fmt.Errorf("%s 값을 duration으로 해석하지 못했어요: %w", key, err)
 	}
 
 	return duration, nil

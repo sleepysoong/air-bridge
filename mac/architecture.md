@@ -109,7 +109,12 @@ Content-Type: application/json
 ### 2. 페어링 상태 조회
 
 ```http
-GET /api/v1/pairing/sessions/{sessionID}?pairing_secret=prs_xxx
+POST /api/v1/pairing/sessions/{sessionID}/lookup
+Content-Type: application/json
+
+{
+  "pairing_secret": "prs_xxx"
+}
 ```
 
 이 응답으로 Android가 들어왔는지, 상대 공개키가 도착했는지 확인해야 해요.
@@ -137,6 +142,20 @@ GET /api/v1/ws?device_id=dev_xxx&relay_token=rt_xxx
 - 수신 `envelope`를 채널별로 분기해야 해요.
 - 처리 완료 후 `ack_envelope`를 보내야 해요.
 - 연결이 끊기면 재연결해야 해요.
+
+## 서버 입력 제한 메모
+
+macOS 네트워크 계층은 아래 상한을 미리 알고 있어야 해요.
+
+- pairing 관련 HTTP JSON 본문은 최대 `16 KiB`예요.
+- `device_name`과 `pairing_secret`는 서버 길이 제한을 넘기면 안 돼요.
+- `content_type`은 최대 `255`바이트예요.
+- `nonce`는 최대 `64`바이트예요.
+- `header_aad`는 최대 `16 KiB`예요.
+- `ciphertext`는 최대 `20 MiB + 16 bytes`예요.
+- WebSocket 클라이언트 메시지는 최대 `28 MiB`예요.
+
+이 상한을 넘는 값은 relay로 보내기 전에 macOS 쪽에서 먼저 막아야 해요.
 
 ## macOS 구현 시 주의할 점
 

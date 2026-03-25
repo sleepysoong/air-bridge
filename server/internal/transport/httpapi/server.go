@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,6 +29,11 @@ type Server struct {
 	hub            *connectionHub
 	mux            *http.ServeMux
 }
+
+const (
+	maxPairingRequestBodyBytes = 16 * 1024
+	maxWebSocketMessageBytes   = 28 * 1024 * 1024
+)
 
 func NewServer(
 	logger *slog.Logger,
@@ -56,7 +62,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions", s.handleCreatePairingSession)
-	s.mux.HandleFunc("GET /api/v1/pairing/sessions/{sessionID}", s.handleGetPairingSession)
+	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/lookup", s.handleLookupPairingSession)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/join", s.handleJoinPairingSession)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/complete", s.handleCompletePairingSession)
 	s.mux.HandleFunc("GET /api/v1/ws", s.handleWebSocket)
@@ -84,20 +90,23 @@ type createPairingSessionResponse struct {
 
 func (s *Server) handleCreatePairingSession(w http.ResponseWriter, r *http.Request) {
 	var request createPairingSessionRequest
-	if err := decodeJSON(r, &request); err != nil {
+	if err := decodeJSON(w, r, &request, maxPairingRequestBodyBytes); err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		s.logger.Warn("페어링 세션 생성 요청 본문이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "error", err)
 		return
 	}
 
 	platform, err := domain.ParsePlatform(request.Platform)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid_platform", err.Error())
+		s.logger.Warn("페어링 세션 생성 요청의 플랫폼 값이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "platform", request.Platform, "error", err)
 		return
 	}
 
 	publicKey, err := decodeBase64Field(request.PublicKey, "public_key")
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid_public_key", err.Error())
+		s.logger.Warn("페어링 세션 생성 요청의 공개키 값이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "error", err)
 		return
 	}
 
@@ -107,9 +116,21 @@ func (s *Server) handleCreatePairingSession(w http.ResponseWriter, r *http.Reque
 		InitiatorPublicKey:  publicKey,
 	})
 	if err != nil {
-		s.writeServiceError(w, err)
+		s.writeServiceError(w, r, err)
 		return
 	}
+
+	s.logger.Info(
+		"페어링 세션 생성 요청을 처리했어요",
+		"session_id",
+		result.Session.ID,
+		"device_id",
+		result.InitiatorDevice.ID,
+		"platform",
+		platform,
+		"remote_addr",
+		r.RemoteAddr,
+	)
 
 	writeJSON(w, http.StatusCreated, createPairingSessionResponse{
 		PairingSessionID:    result.Session.ID,
@@ -136,13 +157,22 @@ type getPairingSessionResponse struct {
 	CompletedAt        string `json:"completed_at,omitempty"`
 }
 
-func (s *Server) handleGetPairingSession(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.PathValue("sessionID")
-	pairingSecret := r.URL.Query().Get("pairing_secret")
+type lookupPairingSessionRequest struct {
+	PairingSecret string `json:"pairing_secret"`
+}
 
-	session, err := s.pairingService.GetSession(r.Context(), sessionID, pairingSecret)
+func (s *Server) handleLookupPairingSession(w http.ResponseWriter, r *http.Request) {
+	var request lookupPairingSessionRequest
+	if err := decodeJSON(w, r, &request, maxPairingRequestBodyBytes); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		s.logger.Warn("페어링 세션 조회 요청 본문이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "error", err)
+		return
+	}
+
+	sessionID := r.PathValue("sessionID")
+	session, err := s.pairingService.GetSession(r.Context(), sessionID, request.PairingSecret)
 	if err != nil {
-		s.writeServiceError(w, err)
+		s.writeServiceError(w, r, err)
 		return
 	}
 
@@ -168,6 +198,16 @@ func (s *Server) handleGetPairingSession(w http.ResponseWriter, r *http.Request)
 		response.CompletedAt = session.CompletedAt.Format(time.RFC3339)
 	}
 
+	s.logger.Info(
+		"페어링 세션 조회 요청을 처리했어요",
+		"session_id",
+		session.ID,
+		"state",
+		session.State,
+		"remote_addr",
+		r.RemoteAddr,
+	)
+
 	writeJSON(w, http.StatusOK, response)
 }
 
@@ -189,20 +229,23 @@ type joinPairingSessionResponse struct {
 
 func (s *Server) handleJoinPairingSession(w http.ResponseWriter, r *http.Request) {
 	var request joinPairingSessionRequest
-	if err := decodeJSON(r, &request); err != nil {
+	if err := decodeJSON(w, r, &request, maxPairingRequestBodyBytes); err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		s.logger.Warn("페어링 참여 요청 본문이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "error", err)
 		return
 	}
 
 	platform, err := domain.ParsePlatform(request.Platform)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid_platform", err.Error())
+		s.logger.Warn("페어링 참여 요청의 플랫폼 값이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "platform", request.Platform, "error", err)
 		return
 	}
 
 	publicKey, err := decodeBase64Field(request.PublicKey, "public_key")
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid_public_key", err.Error())
+		s.logger.Warn("페어링 참여 요청의 공개키 값이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "error", err)
 		return
 	}
 
@@ -214,9 +257,23 @@ func (s *Server) handleJoinPairingSession(w http.ResponseWriter, r *http.Request
 		JoinerPublicKey:  publicKey,
 	})
 	if err != nil {
-		s.writeServiceError(w, err)
+		s.writeServiceError(w, r, err)
 		return
 	}
+
+	s.logger.Info(
+		"페어링 참여 요청을 처리했어요",
+		"session_id",
+		result.Session.ID,
+		"joiner_device_id",
+		result.JoinerDevice.ID,
+		"initiator_device_id",
+		result.InitiatorDeviceID,
+		"platform",
+		platform,
+		"remote_addr",
+		r.RemoteAddr,
+	)
 
 	writeJSON(w, http.StatusOK, joinPairingSessionResponse{
 		PairingSessionID:   result.Session.ID,
@@ -234,16 +291,29 @@ type completePairingSessionRequest struct {
 
 func (s *Server) handleCompletePairingSession(w http.ResponseWriter, r *http.Request) {
 	var request completePairingSessionRequest
-	if err := decodeJSON(r, &request); err != nil {
+	if err := decodeJSON(w, r, &request, maxPairingRequestBodyBytes); err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		s.logger.Warn("페어링 완료 요청 본문이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "error", err)
 		return
 	}
 
 	session, err := s.pairingService.CompleteSession(r.Context(), r.PathValue("sessionID"), request.PairingSecret)
 	if err != nil {
-		s.writeServiceError(w, err)
+		s.writeServiceError(w, r, err)
 		return
 	}
+
+	s.logger.Info(
+		"페어링 완료 요청을 처리했어요",
+		"session_id",
+		session.ID,
+		"initiator_device_id",
+		session.InitiatorDeviceID,
+		"joiner_device_id",
+		session.JoinerDeviceID,
+		"remote_addr",
+		r.RemoteAddr,
+	)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"pairing_session_id": session.ID,
@@ -258,7 +328,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	device, err := s.relayService.AuthenticateDevice(r.Context(), deviceID, relayToken)
 	if err != nil {
-		s.writeServiceError(w, err)
+		s.writeServiceError(w, r, err)
 		return
 	}
 
@@ -266,52 +336,81 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		InsecureSkipVerify: false,
 	})
 	if err != nil {
-		s.logger.Error("accept websocket", "error", err)
+		s.logger.Error("WebSocket 연결을 수락하지 못했어요", "device_id", deviceID, "remote_addr", r.RemoteAddr, "error", err)
 		return
 	}
-	defer connection.Close(websocket.StatusNormalClosure, "connection closed")
+	defer connection.Close(websocket.StatusNormalClosure, "연결을 정리할게요")
+	connection.SetReadLimit(maxWebSocketMessageBytes)
 
 	client := newClientConnection(connection, s.config.WebSocketWriteTimeout)
 	removeConnection := s.hub.add(device.ID, client)
 	defer removeConnection()
+
+	s.logger.Info(
+		"WebSocket 연결을 수락했어요",
+		"device_id",
+		device.ID,
+		"peer_device_id",
+		device.PeerDeviceID,
+		"remote_addr",
+		r.RemoteAddr,
+	)
 
 	if err := client.write(r.Context(), serverMessage{
 		Type:         "connected",
 		DeviceID:     device.ID,
 		PeerDeviceID: device.PeerDeviceID,
 	}); err != nil {
-		s.logger.Error("write websocket connected message", "device_id", device.ID, "error", err)
+		s.logger.Error("WebSocket 연결 확인 메시지를 보내지 못했어요", "device_id", device.ID, "error", err)
 		return
 	}
 
-	if err := s.sendPendingEnvelopes(r.Context(), device.ID, client); err != nil {
-		s.logger.Error("send pending envelopes", "device_id", device.ID, "error", err)
+	pendingCount, err := s.sendPendingEnvelopes(r.Context(), device.ID, client)
+	if err != nil {
+		s.logger.Error("대기 중인 envelope를 보내지 못했어요", "device_id", device.ID, "error", err)
 		return
+	}
+
+	if pendingCount > 0 {
+		s.logger.Info("대기 중인 envelope를 전송했어요", "device_id", device.ID, "pending_count", pendingCount)
 	}
 
 	for {
 		var message clientMessage
 		if err := wsjson.Read(r.Context(), connection, &message); err != nil {
 			if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
+				s.logger.Info("WebSocket 연결이 정상 종료되었어요", "device_id", device.ID, "remote_addr", r.RemoteAddr)
 				return
 			}
 
 			if errors.Is(err, context.Canceled) {
+				s.logger.Info("WebSocket 연결을 취소했어요", "device_id", device.ID, "remote_addr", r.RemoteAddr)
 				return
 			}
 
-			s.logger.Info("websocket read loop closed", "device_id", device.ID, "error", err)
+			s.logger.Warn("WebSocket 메시지를 읽지 못해서 연결을 종료해요", "device_id", device.ID, "remote_addr", r.RemoteAddr, "error", err)
 			return
 		}
 
 		switch message.Type {
 		case "ping":
 			if err := client.write(r.Context(), serverMessage{Type: "pong"}); err != nil {
-				s.logger.Error("write websocket pong", "device_id", device.ID, "error", err)
+				s.logger.Error("WebSocket pong 메시지를 보내지 못했어요", "device_id", device.ID, "error", err)
 				return
 			}
 		case "send_envelope":
 			if err := s.handleClientEnvelope(r.Context(), device, message); err != nil {
+				s.logger.Warn(
+					"envelope 전송 요청을 처리하지 못했어요",
+					"device_id",
+					device.ID,
+					"recipient_device_id",
+					message.RecipientDeviceID,
+					"channel",
+					message.Channel,
+					"error",
+					err,
+				)
 				client.write(r.Context(), serverMessage{
 					Type:    "error",
 					Code:    "send_failed",
@@ -320,17 +419,30 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 		case "ack_envelope":
 			if err := s.relayService.AcknowledgeEnvelope(r.Context(), device.ID, message.EnvelopeID); err != nil {
+				s.logger.Warn(
+					"envelope 전달 확인 요청을 처리하지 못했어요",
+					"device_id",
+					device.ID,
+					"envelope_id",
+					message.EnvelopeID,
+					"error",
+					err,
+				)
 				client.write(r.Context(), serverMessage{
 					Type:    "error",
 					Code:    "ack_failed",
 					Message: err.Error(),
 				})
+				continue
 			}
+
+			s.logger.Info("envelope 전달 확인 요청을 처리했어요", "device_id", device.ID, "envelope_id", message.EnvelopeID)
 		default:
+			s.logger.Warn("알 수 없는 WebSocket 메시지 타입을 받았어요", "device_id", device.ID, "message_type", message.Type)
 			client.write(r.Context(), serverMessage{
 				Type:    "error",
 				Code:    "unknown_message_type",
-				Message: "unknown websocket message type",
+				Message: "알 수 없는 WebSocket 메시지 타입이에요",
 			})
 		}
 	}
@@ -370,42 +482,88 @@ func (s *Server) handleClientEnvelope(ctx context.Context, sender domain.Device,
 		return err
 	}
 
+	s.logger.Info(
+		"envelope 전송 요청을 처리했어요",
+		"envelope_id",
+		envelope.ID,
+		"sender_device_id",
+		envelope.SenderDeviceID,
+		"recipient_device_id",
+		envelope.RecipientDeviceID,
+		"channel",
+		envelope.Channel,
+	)
+
 	s.hub.sendToDevice(envelope.RecipientDeviceID, envelopeToServerMessage(envelope))
 
 	return nil
 }
 
-func (s *Server) sendPendingEnvelopes(ctx context.Context, deviceID string, client *clientConnection) error {
+func (s *Server) sendPendingEnvelopes(ctx context.Context, deviceID string, client *clientConnection) (int, error) {
 	envelopes, err := s.relayService.PendingEnvelopes(ctx, deviceID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	for _, envelope := range envelopes {
 		if err := client.write(ctx, envelopeToServerMessage(envelope)); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	return len(envelopes), nil
 }
 
-func (s *Server) writeServiceError(w http.ResponseWriter, err error) {
+func (s *Server) writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
+	logLevel := slog.LevelWarn
+	statusCode := http.StatusInternalServerError
+	errorCode := "internal_error"
+	message := "내부 서버 오류가 발생했어요"
+
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):
-		s.writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+		statusCode = http.StatusBadRequest
+		errorCode = "invalid_input"
+		message = err.Error()
 	case errors.Is(err, service.ErrUnauthorized):
-		s.writeError(w, http.StatusUnauthorized, "unauthorized", err.Error())
+		statusCode = http.StatusUnauthorized
+		errorCode = "unauthorized"
+		message = err.Error()
 	case errors.Is(err, service.ErrNotFound):
-		s.writeError(w, http.StatusNotFound, "not_found", err.Error())
+		statusCode = http.StatusNotFound
+		errorCode = "not_found"
+		message = err.Error()
 	case errors.Is(err, service.ErrConflict):
-		s.writeError(w, http.StatusConflict, "conflict", err.Error())
+		statusCode = http.StatusConflict
+		errorCode = "conflict"
+		message = err.Error()
 	case errors.Is(err, service.ErrExpired):
-		s.writeError(w, http.StatusGone, "expired", err.Error())
+		statusCode = http.StatusGone
+		errorCode = "expired"
+		message = err.Error()
 	default:
-		s.logger.Error("unhandled service error", "error", err)
-		s.writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		logLevel = slog.LevelError
 	}
+
+	s.logger.Log(
+		r.Context(),
+		logLevel,
+		"요청 처리 중 오류가 발생했어요",
+		"method",
+		r.Method,
+		"path",
+		r.URL.Path,
+		"remote_addr",
+		r.RemoteAddr,
+		"error_code",
+		errorCode,
+		"status_code",
+		statusCode,
+		"error",
+		err,
+	)
+
+	s.writeError(w, statusCode, errorCode, message)
 }
 
 func (s *Server) writeError(w http.ResponseWriter, statusCode int, code string, message string) {
@@ -460,18 +618,27 @@ func envelopeToServerMessage(envelope domain.Envelope) serverMessage {
 	}
 }
 
-func decodeJSON(r *http.Request, destination any) error {
-	defer r.Body.Close()
+func decodeJSON(w http.ResponseWriter, r *http.Request, destination any, maxBytes int64) error {
+	body := r.Body
+	if maxBytes > 0 {
+		body = http.MaxBytesReader(w, r.Body, maxBytes)
+	}
+	defer body.Close()
 
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(destination); err != nil {
-		return err
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			return errors.New("요청 본문 크기가 서버 제한을 초과했어요")
+		}
+
+		return errors.New("요청 본문의 JSON 형식이 올바르지 않아요")
 	}
 
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return errors.New("request body must contain a single JSON object")
+		return errors.New("요청 본문에는 JSON 객체 하나만 담아야 해요")
 	}
 
 	return nil
@@ -486,12 +653,12 @@ func writeJSON(w http.ResponseWriter, statusCode int, value any) {
 func decodeBase64Field(value string, fieldName string) ([]byte, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return nil, errors.New(fieldName + " is required")
+		return nil, fmt.Errorf("%s 값은 비어 있으면 안 돼요", humanReadableFieldName(fieldName))
 	}
 
 	decoded, err := base64.RawStdEncoding.DecodeString(trimmed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s 값은 올바른 base64 형식이어야 해요", humanReadableFieldName(fieldName))
 	}
 
 	return decoded, nil
@@ -574,7 +741,26 @@ func (h *connectionHub) sendToDevice(deviceID string, message serverMessage) {
 
 	for _, client := range clients {
 		if err := client.write(context.Background(), message); err != nil {
-			h.logger.Error("push websocket message", "device_id", deviceID, "error", err)
+			h.logger.Error("WebSocket 메시지를 밀어 넣지 못했어요", "device_id", deviceID, "error", err)
 		}
+	}
+}
+
+func humanReadableFieldName(fieldName string) string {
+	switch fieldName {
+	case "public_key":
+		return "공개키"
+	case "pairing_secret":
+		return "페어링 비밀값"
+	case "content_type":
+		return "콘텐츠 타입"
+	case "nonce":
+		return "nonce"
+	case "header_aad":
+		return "헤더 AAD"
+	case "ciphertext":
+		return "암호문"
+	default:
+		return fieldName
 	}
 }

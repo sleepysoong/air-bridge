@@ -126,7 +126,12 @@ Content-Type: application/json
 ### 2. 페어링 상태 확인
 
 ```http
-GET /api/v1/pairing/sessions/{sessionID}?pairing_secret=prs_xxx
+POST /api/v1/pairing/sessions/{sessionID}/lookup
+Content-Type: application/json
+
+{
+  "pairing_secret": "prs_xxx"
+}
 ```
 
 이 응답을 바탕으로 SAS 확인에 필요한 상대 기기 정보를 보여줘야 해요.
@@ -147,6 +152,20 @@ Android가 보낼 수 있는 메시지는 아래와 같아요.
 - `ping`
 - `send_envelope`
 - `ack_envelope`
+
+## 서버 입력 제한 메모
+
+Android 네트워크 계층은 아래 상한을 클라이언트에서도 알고 있어야 해요.
+
+- pairing 관련 HTTP JSON 본문은 최대 `16 KiB`예요.
+- `device_name`과 `pairing_secret`는 서버 길이 제한을 넘기면 안 돼요.
+- `content_type`은 최대 `255`바이트예요.
+- `nonce`는 최대 `64`바이트예요.
+- `header_aad`는 최대 `16 KiB`예요.
+- `ciphertext`는 최대 `20 MiB + 16 bytes`예요.
+- WebSocket 클라이언트 메시지는 최대 `28 MiB`예요.
+
+이 상한을 넘는 값은 relay로 보내기 전에 Android 쪽에서 먼저 거부해야 해요.
 
 ## Android가 서버에 보내는 payload 방향
 

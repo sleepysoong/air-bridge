@@ -1,8 +1,10 @@
 package service
 
 import (
-	"context"
 	"bytes"
+	"context"
+	"io"
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -16,16 +18,20 @@ func openTestStore(t *testing.T) *sqlite.Store {
 
 	store, err := sqlite.Open(filepath.Join(t.TempDir(), "relay.db"))
 	if err != nil {
-		t.Fatalf("open sqlite store: %v", err)
+		t.Fatalf("SQLite 테스트 저장소를 열지 못했어요: %v", err)
 	}
 
 	t.Cleanup(func() {
 		if closeErr := store.Close(); closeErr != nil {
-			t.Fatalf("close sqlite store: %v", closeErr)
+			t.Fatalf("SQLite 테스트 저장소를 닫지 못했어요: %v", closeErr)
 		}
 	})
 
 	return store
+}
+
+func newDiscardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 func createReadyPair(
@@ -44,7 +50,7 @@ func createReadyPair(
 		InitiatorPublicKey:  x25519PublicKey(0x11),
 	})
 	if err != nil {
-		t.Fatalf("create pairing session: %v", err)
+		t.Fatalf("페어링 세션을 생성하지 못했어요: %v", err)
 	}
 
 	pairingService.now = func() time.Time { return createdAt.Add(1 * time.Minute) }
@@ -57,7 +63,7 @@ func createReadyPair(
 		JoinerPublicKey:  x25519PublicKey(0x22),
 	})
 	if err != nil {
-		t.Fatalf("join pairing session: %v", err)
+		t.Fatalf("페어링 세션에 참여하지 못했어요: %v", err)
 	}
 
 	return createResult, joinResult
@@ -77,7 +83,7 @@ func createCompletedPair(
 
 	completedSession, err := pairingService.CompleteSession(ctx, createResult.Session.ID, createResult.PairingSecret)
 	if err != nil {
-		t.Fatalf("complete pairing session: %v", err)
+		t.Fatalf("페어링 세션을 완료하지 못했어요: %v", err)
 	}
 
 	return createResult, joinResult, completedSession

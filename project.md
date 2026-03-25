@@ -81,10 +81,16 @@ Android 제약도 이미 확정되어 있어요.
 현재 기준 라우트는 아래와 같아요.
 - `GET /healthz`
 - `POST /api/v1/pairing/sessions`
-- `GET /api/v1/pairing/sessions/{sessionID}`
+- `POST /api/v1/pairing/sessions/{sessionID}/lookup`
 - `POST /api/v1/pairing/sessions/{sessionID}/join`
 - `POST /api/v1/pairing/sessions/{sessionID}/complete`
 - `GET /api/v1/ws`
+
+현재 서버는 아래 입력 제한도 함께 적용해야 해요.
+- `device_name`, `pairing_secret`는 길이 제한을 둬야 해요.
+- pairing 관련 HTTP JSON 본문은 서버 상한 안에서만 받아야 해요.
+- `content_type`, `nonce`, `header_aad`, `ciphertext`는 서버 측 최대 크기를 넘기면 안 돼요.
+- WebSocket 클라이언트 메시지도 서버 최대 크기를 넘기면 연결을 끊어야 해요.
 
 ## 저장소 구조
 

@@ -116,7 +116,11 @@ curl -X POST http://localhost:8080/api/v1/pairing/sessions \
 ### pairing session 조회
 
 ```bash
-curl "http://localhost:8080/api/v1/pairing/sessions/ps_xxx?pairing_secret=prs_xxx"
+curl -X POST http://localhost:8080/api/v1/pairing/sessions/ps_xxx/lookup \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "pairing_secret": "prs_xxx"
+  }'
 ```
 
 ## 이 서버가 지켜야 할 원칙
@@ -125,7 +129,18 @@ curl "http://localhost:8080/api/v1/pairing/sessions/ps_xxx?pairing_secret=prs_xx
 - relay token은 평문이 아니라 hash로 저장해야 해요.
 - relay token만 맞아도 접속되는 구조가 되면 안 되고, 페어링 완료 상태까지 같이 검증해야 해요.
 - JSON 필드명과 라우트 이름은 초기에 안정적으로 고정해야 해요.
+- `pairing_secret`를 query string으로 노출하면 안 돼요.
 - 기기 간 전달은 online push와 offline queue 모두를 고려해야 해요.
+- 서버는 입력 크기 제한을 명시적으로 적용해야 해요.
+
+현재 입력 상한은 아래 기준으로 관리해야 해요.
+- pairing 관련 HTTP JSON 본문은 최대 `16 KiB`만 받아야 해요.
+- `device_name`, `pairing_secret`는 길이 제한 안에서만 받아야 해요.
+- `content_type`은 최대 `255`바이트만 받아야 해요.
+- `nonce`는 최대 `64`바이트만 받아야 해요.
+- `header_aad`는 최대 `16 KiB`만 받아야 해요.
+- `ciphertext`는 최대 `20 MiB + 16 bytes`만 받아야 해요.
+- WebSocket 클라이언트 메시지는 최대 `28 MiB`만 받아야 해요.
 
 ## 다음 작업
 

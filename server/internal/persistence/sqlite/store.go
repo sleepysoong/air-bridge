@@ -22,6 +22,99 @@ type CleanupResult struct {
 	DeletedEnvelopes       int64
 }
 
+const (
+	maxDeviceNameRunes  = 128
+	maxContentTypeBytes = 255
+	maxNonceBytes       = 64
+	maxHeaderAADBytes   = 16 * 1024
+	maxCiphertextBytes  = 20*1024*1024 + 16
+)
+
+const pragmaSQL = `
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+`
+
+const createDevicesTableSQL = `
+CREATE TABLE IF NOT EXISTS devices (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 128),
+	platform TEXT NOT NULL CHECK(platform IN ('macos', 'android')),
+	peer_device_id TEXT REFERENCES devices(id) ON DELETE SET NULL,
+	relay_token_hash BLOB NOT NULL CHECK(length(relay_token_hash) > 0),
+	pairing_confirmed_at_ms INTEGER,
+	created_at_ms INTEGER NOT NULL,
+	last_seen_at_ms INTEGER NOT NULL
+);
+`
+
+const createPairingSessionsTableSQL = `
+CREATE TABLE IF NOT EXISTS pairing_sessions (
+	id TEXT PRIMARY KEY,
+	initiator_device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+	initiator_name TEXT NOT NULL CHECK(length(initiator_name) BETWEEN 1 AND 128),
+	initiator_platform TEXT NOT NULL CHECK(initiator_platform IN ('macos', 'android')),
+	initiator_public_key BLOB NOT NULL CHECK(length(initiator_public_key) = 32),
+	pairing_secret_hash BLOB NOT NULL CHECK(length(pairing_secret_hash) > 0),
+	joiner_device_id TEXT REFERENCES devices(id) ON DELETE SET NULL,
+	joiner_name TEXT CHECK(joiner_name IS NULL OR length(joiner_name) BETWEEN 1 AND 128),
+	joiner_platform TEXT CHECK(joiner_platform IS NULL OR joiner_platform IN ('macos', 'android')),
+	joiner_public_key BLOB CHECK(joiner_public_key IS NULL OR length(joiner_public_key) = 32),
+	state TEXT NOT NULL CHECK(state IN ('pending', 'ready', 'completed')),
+	expires_at_ms INTEGER NOT NULL,
+	created_at_ms INTEGER NOT NULL,
+	updated_at_ms INTEGER NOT NULL,
+	completed_at_ms INTEGER,
+	CHECK(
+		(state = 'pending' AND joiner_device_id IS NULL AND joiner_name IS NULL AND joiner_platform IS NULL AND joiner_public_key IS NULL AND completed_at_ms IS NULL) OR
+		(state = 'ready' AND joiner_device_id IS NOT NULL AND joiner_name IS NOT NULL AND joiner_platform IS NOT NULL AND joiner_public_key IS NOT NULL AND completed_at_ms IS NULL) OR
+		(state = 'completed' AND joiner_device_id IS NOT NULL AND joiner_name IS NOT NULL AND joiner_platform IS NOT NULL AND joiner_public_key IS NOT NULL AND completed_at_ms IS NOT NULL)
+	)
+);
+`
+
+const createEnvelopesTableSQL = `
+CREATE TABLE IF NOT EXISTS envelopes (
+	id TEXT PRIMARY KEY,
+	sender_device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+	recipient_device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+	channel TEXT NOT NULL CHECK(channel IN ('clipboard', 'notification')),
+	content_type TEXT NOT NULL CHECK(length(content_type) BETWEEN 1 AND 255),
+	nonce BLOB NOT NULL CHECK(length(nonce) BETWEEN 1 AND 64),
+	header_aad BLOB NOT NULL CHECK(length(header_aad) BETWEEN 1 AND 16384),
+	ciphertext BLOB NOT NULL CHECK(length(ciphertext) BETWEEN 1 AND 20971536),
+	created_at_ms INTEGER NOT NULL,
+	expires_at_ms INTEGER NOT NULL,
+	delivered_at_ms INTEGER,
+	CHECK(delivered_at_ms IS NULL OR delivered_at_ms >= created_at_ms)
+);
+`
+
+const createIndexesSQL = `
+CREATE INDEX IF NOT EXISTS idx_devices_peer_device_id ON devices(peer_device_id);
+CREATE INDEX IF NOT EXISTS idx_pairing_sessions_expires_at_ms ON pairing_sessions(expires_at_ms);
+CREATE INDEX IF NOT EXISTS idx_envelopes_recipient_device_id_created_at_ms ON envelopes(recipient_device_id, created_at_ms);
+CREATE INDEX IF NOT EXISTS idx_envelopes_expires_at_ms ON envelopes(expires_at_ms);
+`
+
+var requiredTableDefinitionFragments = map[string][]string{
+	"devices": {
+		"check(length(name) between 1 and 128)",
+		"check(platform in ('macos', 'android'))",
+		"peer_device_id text references devices(id) on delete set null",
+	},
+	"pairing_sessions": {
+		"initiator_device_id text not null references devices(id) on delete cascade",
+		"check(state in ('pending', 'ready', 'completed'))",
+		"state = 'completed'",
+	},
+	"envelopes": {
+		"sender_device_id text not null references devices(id) on delete cascade",
+		"check(channel in ('clipboard', 'notification'))",
+		"check(length(ciphertext) between 1 and 20971536)",
+	},
+}
+
 func Open(databasePath string) (*Store, error) {
 	db, err := sql.Open("sqlite", databasePath)
 	if err != nil {
@@ -430,70 +523,251 @@ func (s *Store) DeleteExpired(ctx context.Context, now time.Time) (CleanupResult
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	const schema = `
-PRAGMA foreign_keys = ON;
-PRAGMA journal_mode = WAL;
-
-CREATE TABLE IF NOT EXISTS devices (
-	id TEXT PRIMARY KEY,
-	name TEXT NOT NULL,
-	platform TEXT NOT NULL,
-	peer_device_id TEXT,
-	relay_token_hash BLOB NOT NULL,
-	pairing_confirmed_at_ms INTEGER,
-	created_at_ms INTEGER NOT NULL,
-	last_seen_at_ms INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS pairing_sessions (
-	id TEXT PRIMARY KEY,
-	initiator_device_id TEXT NOT NULL,
-	initiator_name TEXT NOT NULL,
-	initiator_platform TEXT NOT NULL,
-	initiator_public_key BLOB NOT NULL,
-	pairing_secret_hash BLOB NOT NULL,
-	joiner_device_id TEXT,
-	joiner_name TEXT,
-	joiner_platform TEXT,
-	joiner_public_key BLOB,
-	state TEXT NOT NULL,
-	expires_at_ms INTEGER NOT NULL,
-	created_at_ms INTEGER NOT NULL,
-	updated_at_ms INTEGER NOT NULL,
-	completed_at_ms INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS envelopes (
-	id TEXT PRIMARY KEY,
-	sender_device_id TEXT NOT NULL,
-	recipient_device_id TEXT NOT NULL,
-	channel TEXT NOT NULL,
-	content_type TEXT NOT NULL,
-	nonce BLOB NOT NULL,
-	header_aad BLOB NOT NULL,
-	ciphertext BLOB NOT NULL,
-	created_at_ms INTEGER NOT NULL,
-	expires_at_ms INTEGER NOT NULL,
-	delivered_at_ms INTEGER
-);
-
-CREATE INDEX IF NOT EXISTS idx_devices_peer_device_id ON devices(peer_device_id);
-CREATE INDEX IF NOT EXISTS idx_pairing_sessions_expires_at_ms ON pairing_sessions(expires_at_ms);
-CREATE INDEX IF NOT EXISTS idx_envelopes_recipient_device_id_created_at_ms ON envelopes(recipient_device_id, created_at_ms);
-CREATE INDEX IF NOT EXISTS idx_envelopes_expires_at_ms ON envelopes(expires_at_ms);
-`
-
-	if _, err := s.db.ExecContext(ctx, schema); err != nil {
-		return fmt.Errorf("run sqlite schema migration: %w", err)
+	if _, err := s.db.ExecContext(ctx, pragmaSQL); err != nil {
+		return fmt.Errorf("SQLite pragma 구성을 적용하지 못했어요: %w", err)
 	}
 
-	if _, err := s.db.ExecContext(ctx, `ALTER TABLE devices ADD COLUMN pairing_confirmed_at_ms INTEGER`); err != nil {
-		if !strings.Contains(err.Error(), "duplicate column name") {
-			return fmt.Errorf("add pairing_confirmed_at_ms column: %w", err)
+	if _, err := s.db.ExecContext(ctx, createDevicesTableSQL+createPairingSessionsTableSQL+createEnvelopesTableSQL+createIndexesSQL); err != nil {
+		return fmt.Errorf("SQLite 스키마 마이그레이션을 적용하지 못했어요: %w", err)
+	}
+
+	hasPairingConfirmedColumn, err := s.hasColumn(ctx, "devices", "pairing_confirmed_at_ms")
+	if err != nil {
+		return fmt.Errorf("devices 테이블 컬럼 정보를 확인하지 못했어요: %w", err)
+	}
+
+	if !hasPairingConfirmedColumn {
+		if _, err := s.db.ExecContext(ctx, `ALTER TABLE devices ADD COLUMN pairing_confirmed_at_ms INTEGER`); err != nil {
+			return fmt.Errorf("pairing_confirmed_at_ms 컬럼을 추가하지 못했어요: %w", err)
+		}
+	}
+
+	needsRebuild, err := s.schemaNeedsRebuild(ctx)
+	if err != nil {
+		return fmt.Errorf("SQLite 스키마 무결성을 확인하지 못했어요: %w", err)
+	}
+
+	if needsRebuild {
+		if err := s.rebuildTables(ctx); err != nil {
+			return fmt.Errorf("SQLite 스키마를 안전한 정의로 재구성하지 못했어요: %w", err)
 		}
 	}
 
 	return nil
+}
+
+func (s *Store) hasColumn(ctx context.Context, tableName string, columnName string) (bool, error) {
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT 1 FROM pragma_table_info(?) WHERE name = ? LIMIT 1`,
+		tableName,
+		columnName,
+	)
+
+	var marker int
+	if err := row.Scan(&marker); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (s *Store) schemaNeedsRebuild(ctx context.Context) (bool, error) {
+	for tableName, fragments := range requiredTableDefinitionFragments {
+		definition, err := s.tableDefinitionSQL(ctx, tableName)
+		if err != nil {
+			return false, err
+		}
+
+		normalizedDefinition := strings.ToLower(definition)
+		for _, fragment := range fragments {
+			if !strings.Contains(normalizedDefinition, fragment) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func (s *Store) tableDefinitionSQL(ctx context.Context, tableName string) (string, error) {
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`,
+		tableName,
+	)
+
+	var definition sql.NullString
+	if err := row.Scan(&definition); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("테이블 %q 정의를 찾을 수 없어요", tableName)
+		}
+
+		return "", err
+	}
+
+	if !definition.Valid {
+		return "", fmt.Errorf("테이블 %q 정의가 비어 있어요", tableName)
+	}
+
+	return definition.String, nil
+}
+
+func (s *Store) rebuildTables(ctx context.Context) (err error) {
+	if _, err = s.db.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+		return err
+	}
+
+	defer func() {
+		if _, pragmaErr := s.db.ExecContext(context.Background(), `PRAGMA foreign_keys = ON`); pragmaErr != nil && err == nil {
+			err = pragmaErr
+		}
+	}()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	statements := []string{
+		`ALTER TABLE envelopes RENAME TO envelopes_legacy`,
+		`ALTER TABLE pairing_sessions RENAME TO pairing_sessions_legacy`,
+		`ALTER TABLE devices RENAME TO devices_legacy`,
+		createDevicesTableSQL,
+		createPairingSessionsTableSQL,
+		createEnvelopesTableSQL,
+		`INSERT INTO devices (
+			id,
+			name,
+			platform,
+			peer_device_id,
+			relay_token_hash,
+			pairing_confirmed_at_ms,
+			created_at_ms,
+			last_seen_at_ms
+		)
+		SELECT
+			id,
+			name,
+			platform,
+			peer_device_id,
+			relay_token_hash,
+			pairing_confirmed_at_ms,
+			created_at_ms,
+			last_seen_at_ms
+		FROM devices_legacy`,
+		`INSERT INTO pairing_sessions (
+			id,
+			initiator_device_id,
+			initiator_name,
+			initiator_platform,
+			initiator_public_key,
+			pairing_secret_hash,
+			joiner_device_id,
+			joiner_name,
+			joiner_platform,
+			joiner_public_key,
+			state,
+			expires_at_ms,
+			created_at_ms,
+			updated_at_ms,
+			completed_at_ms
+		)
+		SELECT
+			id,
+			initiator_device_id,
+			initiator_name,
+			initiator_platform,
+			initiator_public_key,
+			pairing_secret_hash,
+			joiner_device_id,
+			joiner_name,
+			joiner_platform,
+			joiner_public_key,
+			state,
+			expires_at_ms,
+			created_at_ms,
+			updated_at_ms,
+			completed_at_ms
+		FROM pairing_sessions_legacy`,
+		`INSERT INTO envelopes (
+			id,
+			sender_device_id,
+			recipient_device_id,
+			channel,
+			content_type,
+			nonce,
+			header_aad,
+			ciphertext,
+			created_at_ms,
+			expires_at_ms,
+			delivered_at_ms
+		)
+		SELECT
+			id,
+			sender_device_id,
+			recipient_device_id,
+			channel,
+			content_type,
+			nonce,
+			header_aad,
+			ciphertext,
+			created_at_ms,
+			expires_at_ms,
+			delivered_at_ms
+		FROM envelopes_legacy`,
+		`DROP TABLE envelopes_legacy`,
+		`DROP TABLE pairing_sessions_legacy`,
+		`DROP TABLE devices_legacy`,
+		createIndexesSQL,
+	}
+
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	if err := s.validateForeignKeys(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Store) validateForeignKeys(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var (
+			tableName string
+			rowID     int64
+			parent    string
+			foreignID int64
+		)
+
+		if err := rows.Scan(&tableName, &rowID, &parent, &foreignID); err != nil {
+			return err
+		}
+
+		return fmt.Errorf("foreign key 검증에 실패했어요: table=%s rowid=%d parent=%s fk=%d", tableName, rowID, parent, foreignID)
+	}
+
+	return rows.Err()
 }
 
 func insertDevice(ctx context.Context, executor interface {

@@ -63,3 +63,9 @@ air-bridge/
 - 프로젝트 기준 문서와 TODO를 만들었어요.
 - relay 서버의 초기 골격과 기본 API를 만들었어요.
 - Android와 macOS는 아직 문서 단계예요.
+
+## 현재 서버 계약 메모
+
+- 페어링 상태 조회는 `POST /api/v1/pairing/sessions/{sessionID}/lookup`로 처리해야 해요.
+- `pairing_secret`는 query string으로 보내면 안 되고 JSON 본문으로만 보내야 해요.
+- 서버는 `device_name`, `pairing_secret`, `content_type`, `nonce`, `header_aad`, `ciphertext`, HTTP body, WebSocket 메시지 크기에 상한을 적용해야 해요.

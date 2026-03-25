@@ -19,7 +19,7 @@ func ParsePlatform(raw string) (Platform, error) {
 	case PlatformMacOS, PlatformAndroid:
 		return Platform(raw), nil
 	default:
-		return "", fmt.Errorf("unsupported platform %q", raw)
+		return "", fmt.Errorf("지원하지 않는 플랫폼 값이에요: %q", raw)
 	}
 }
 
@@ -43,7 +43,7 @@ func ParseChannel(raw string) (Channel, error) {
 	case ChannelClipboard, ChannelNotification:
 		return Channel(raw), nil
 	default:
-		return "", fmt.Errorf("unsupported channel %q", raw)
+		return "", fmt.Errorf("지원하지 않는 채널 값이에요: %q", raw)
 	}
 }
 

@@ -92,7 +92,7 @@ server/
 1. Android 앱이 QR에서 `sessionID`, `pairingSecret`, relay URL, Mac public key를 읽어야 해요.
 2. Android 앱이 `POST /api/v1/pairing/sessions/{sessionID}/join`을 호출해야 해요.
 3. 서버는 joiner device와 relay token을 만들고 session 상태를 `ready`로 바꿔야 해요.
-4. macOS 앱은 `GET /api/v1/pairing/sessions/{sessionID}`로 상태를 확인해야 해요.
+4. macOS 앱은 `POST /api/v1/pairing/sessions/{sessionID}/lookup`으로 상태를 확인해야 해요.
 5. 이 시점의 relay token은 발급되더라도 WebSocket 인증에는 아직 사용할 수 없어요.
 
 ### 3. 양쪽이 SAS를 확인한 뒤
@@ -151,9 +151,17 @@ initiator device와 pairing session을 만들어요.
 }
 ```
 
-### `GET /api/v1/pairing/sessions/{sessionID}?pairing_secret=...`
+### `POST /api/v1/pairing/sessions/{sessionID}/lookup`
 
 페어링 상태를 조회해요.
+
+요청 예시는 아래와 같아요.
+
+```json
+{
+  "pairing_secret": "prs_xxx"
+}
+```
 
 - `pending`: 아직 joiner가 없어요.
 - `ready`: joiner가 들어왔어요.
@@ -198,6 +206,21 @@ joiner device를 추가해요.
   "pairing_secret": "prs_xxx"
 }
 ```
+
+## 입력 크기 제한
+
+서버는 아래 상한을 강제로 적용해야 해요.
+
+- pairing 관련 HTTP JSON 본문은 최대 `16 KiB`만 받아야 해요.
+- `device_name`은 최대 `128`자만 받아야 해요.
+- `pairing_secret`는 최대 `128`자만 받아야 해요.
+- `content_type`은 최대 `255`바이트만 받아야 해요.
+- `nonce`는 최대 `64`바이트만 받아야 해요.
+- `header_aad`는 최대 `16 KiB`만 받아야 해요.
+- `ciphertext`는 최대 `20 MiB + 16 bytes`만 받아야 해요.
+- WebSocket 클라이언트 메시지는 최대 `28 MiB`만 받아야 해요.
+
+이 제한은 서버 메모리 사용량과 SQLite 저장소 오염을 막기 위한 최소 방어선이에요. 클라이언트도 같은 상한을 미리 알고 로컬에서 빠르게 실패 처리해야 해요.
 
 ## WebSocket 프로토콜
 
