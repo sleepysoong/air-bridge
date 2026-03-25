@@ -1,0 +1,11 @@
+.DS_Store
+.idea/
+.vscode/
+
+server/bin/
+server/data/
+server/.cache/
+server/coverage.out
+server/*.db
+server/*.db-shm
+server/*.db-wal
