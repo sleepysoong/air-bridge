@@ -9,3 +9,5 @@ server/coverage.out
 server/*.db
 server/*.db-shm
 server/*.db-wal
+
+mac/.build/

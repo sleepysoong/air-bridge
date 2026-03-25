@@ -3,11 +3,11 @@ package com.airbridge.app.app
 import android.app.Application
 
 class AirBridgeApplication : Application() {
-    lateinit var appContainer: AppContainer
+    lateinit var container: AppContainer
         private set
 
     override fun onCreate() {
         super.onCreate()
-        appContainer = AppContainer(this)
+        container = AppContainer(this)
     }
 }

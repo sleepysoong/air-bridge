@@ -26,8 +26,9 @@
 
 ## macOS App
 
-- [ ] `mac/` 아래에 네이티브 macOS 메뉴바 프로젝트를 만들어야 해요.
-- [ ] 페어링 화면과 Keychain 저장을 붙여야 해요.
-- [ ] `NSPasteboard` 감시와 canonical clipboard payload 송신을 구현해야 해요.
-- [ ] Android 알림을 `UNUserNotificationCenter`로 미러링해야 해요.
-- [ ] 수신한 클립보드 payload를 macOS pasteboard에 적용해야 해요.
+- [x] `mac/` 아래에 네이티브 macOS 메뉴바 프로젝트를 만들었어요.
+- [x] 페어링 화면과 Keychain 저장을 붙였어요.
+- [x] `NSPasteboard` 감시와 canonical clipboard payload 송신을 구현했어요.
+- [x] Android 알림을 `UNUserNotificationCenter`로 미러링하게 만들었어요.
+- [x] 수신한 클립보드 payload를 macOS pasteboard에 적용하게 만들었어요.
+- [ ] Android와 SAS/payload 계약을 최종 확정하고 실제 E2E 검증을 해야 해요.

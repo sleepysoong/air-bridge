@@ -2,7 +2,7 @@
 
 이 폴더는 macOS 클라이언트 구현 기준을 담는 곳이에요.
 
-현재는 relay 서버를 먼저 만드는 단계라서 아직 앱 코드는 없어요. 대신 macOS 쪽 책임과 구조를 먼저 문서로 고정해서 이후 구현 때 흔들리지 않게 할게요.
+이제 `mac/` 아래에는 실제로 빌드 가능한 메뉴바 앱 코드가 있어요. Android와 최종 계약을 아직 맞추지 않은 부분만 남겨 두고, macOS 단독으로 완성 가능한 범위는 프로덕션 기준으로 정리했어요.
 
 ## 이 영역의 역할
 
@@ -15,9 +15,44 @@ macOS 앱은 아래 책임을 맡아야 해요.
 
 ## 현재 상태
 
-- 구현 상태: 아직 프로젝트 생성 전이에요.
-- 우선순위: Android 이후에 붙일 예정이에요.
-- UI 방향: 메뉴바 중심, 시스템 알림 미러링 중심으로 가야 해요.
+- 구현 상태: Swift Package 기반 macOS 메뉴바 앱이 있어요.
+- 앱 형태: `MenuBarExtra` + Settings 화면 구조예요.
+- 저장소: Keychain에 pairing session과 relay 관련 비밀값을 저장해요.
+- 네트워크: relay HTTP + WebSocket 클라이언트가 실제 서버 계약에 맞게 구현돼 있어요.
+- 기능 범위: pairing, clipboard 송수신, Android 알림 미러링, reconnect, local validation이 포함돼요.
+- 남은 범위: Android와 payload/SAS 규격 최종 합의, 실제 E2E 검증, 배포 서명 마감이에요.
+
+## 디렉터리 구조
+
+```text
+mac/
+├── README.md
+├── architecture.md
+├── Package.swift
+├── AirBridgeMac/
+│   ├── App/
+│   ├── Data/
+│   ├── Domain/
+│   └── Feature/
+└── Tests/
+    └── AirBridgeMacTests/
+```
+
+## 로컬 빌드 방법
+
+```bash
+cd /Users/sleepysoong/Desktop/air-bridge
+swift build --package-path mac
+```
+
+실행은 아래처럼 하면 돼요.
+
+```bash
+cd /Users/sleepysoong/Desktop/air-bridge
+swift run --package-path mac
+```
+
+테스트 코드는 `mac/Tests/AirBridgeMacTests/` 아래에 있지만, 현재 이 환경처럼 full Xcode가 아닌 Command Line Tools만 잡힌 경우에는 `XCTest`가 빠져 있어서 `swift test`를 바로 실행할 수 없을 수 있어요.
 
 ## 먼저 읽어야 할 문서
 
@@ -31,3 +66,5 @@ macOS 앱은 아래 책임을 맡아야 해요.
 - Android 알림은 `UNUserNotificationCenter`로 미러링해야 해요.
 - 클립보드 반사 루프를 막기 위해 origin tag와 synthetic write guard가 필요해요.
 - v1에서는 히스토리 검색 UI보다 안정적인 송수신이 우선이에요.
+- relay 코드 기준 pairing lookup 경로는 `POST /api/v1/pairing/sessions/{sessionID}/lookup`이에요.
+- SAS 6자리 계산 로직은 현재 macOS 쪽에서 임시로 구현돼 있지만, Android와 최종적으로 같게 맞추기 전까지는 잠정 규격이에요.

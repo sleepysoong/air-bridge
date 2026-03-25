@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "air-bridge-android"
 include(":app")
+

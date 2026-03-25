@@ -1,1 +1,2 @@
-# Project-specific rules can stay minimal while the app is pre-release.
+# No custom release rules yet.
+
