@@ -1,5 +1,6 @@
 package com.airbridge.app.data.crypto
 
+import com.airbridge.app.data.relay.RelayServerLimits
 import com.airbridge.app.domain.BridgeChannel
 import com.airbridge.app.domain.EncryptedEnvelope
 import com.airbridge.app.domain.EnvelopeHeader
@@ -27,9 +28,19 @@ class EnvelopeCipher(
         localPrivateKeyBase64: String,
         peerPublicKeyBase64: String,
     ): EncryptedEnvelope {
+        val contentTypeBytes = contentType.toByteArray(StandardCharsets.UTF_8)
+        require(contentTypeBytes.size <= RelayServerLimits.MAX_CONTENT_TYPE_BYTES) {
+            "content_type은 ${RelayServerLimits.MAX_CONTENT_TYPE_BYTES}바이트를 넘을 수 없어요 (현재: ${contentTypeBytes.size}바이트)"
+        }
+        
         val sharedSecret = sessionKeyStore.deriveSharedSecret(localPrivateKeyBase64, peerPublicKeyBase64)
         val key = deriveDirectionKey(sharedSecret, pairingSessionId, senderDeviceId, recipientDeviceId)
         val nonce = ByteArray(12).also(secureRandom::nextBytes)
+        
+        require(nonce.size <= RelayServerLimits.MAX_NONCE_BYTES) {
+            "nonce는 ${RelayServerLimits.MAX_NONCE_BYTES}바이트를 넘을 수 없어요 (현재: ${nonce.size}바이트)"
+        }
+        
         val header = EnvelopeHeader(
             channel = channel,
             contentType = contentType,
@@ -38,11 +49,20 @@ class EnvelopeCipher(
             pairingSessionId = pairingSessionId,
         )
         val headerBytes = json.encodeToString(EnvelopeHeader.serializer(), header).toByteArray(StandardCharsets.UTF_8)
+        
+        require(headerBytes.size <= RelayServerLimits.MAX_HEADER_AAD_BYTES) {
+            "header_aad는 ${RelayServerLimits.MAX_HEADER_AAD_BYTES}바이트를 넘을 수 없어요 (현재: ${headerBytes.size}바이트)"
+        }
+        
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
 
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, nonce))
         cipher.updateAAD(headerBytes)
         val ciphertext = cipher.doFinal(plaintext)
+        
+        require(ciphertext.size <= RelayServerLimits.MAX_CIPHERTEXT_BYTES) {
+            "ciphertext는 ${RelayServerLimits.MAX_CIPHERTEXT_BYTES}바이트를 넘을 수 없어요 (현재: ${ciphertext.size}바이트)"
+        }
 
         return EncryptedEnvelope(
             channel = channel,

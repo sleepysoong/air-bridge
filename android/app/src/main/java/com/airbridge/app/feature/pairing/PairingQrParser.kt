@@ -1,7 +1,9 @@
 package com.airbridge.app.feature.pairing
 
-import android.net.Uri
 import com.airbridge.app.domain.PairingQrPayload
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import kotlinx.serialization.json.Json
 
 class PairingQrParser(
@@ -24,33 +26,62 @@ class PairingQrParser(
     }
 
     private fun parseUri(rawValue: String): PairingQrPayload {
-        val uri = Uri.parse(rawValue)
-        val relayBaseUrl = uri.getQueryParameter("relay_base_url")
-            ?: uri.getQueryParameter("relay_url")
-            ?: uri.getQueryParameter("relayBaseUrl")
+        val queryParameters = parseQueryParameters(rawValue)
+        val relayBaseUrl = queryParameters["relay_base_url"]
+            ?: queryParameters["relay_url"]
+            ?: queryParameters["relayBaseUrl"]
             ?: ""
-        val pairingSessionId = uri.getQueryParameter("pairing_session_id")
-            ?: uri.getQueryParameter("session_id")
-            ?: uri.getQueryParameter("pairingSessionId")
+        val pairingSessionId = queryParameters["pairing_session_id"]
+            ?: queryParameters["session_id"]
+            ?: queryParameters["pairingSessionId"]
             ?: ""
-        val pairingSecret = uri.getQueryParameter("pairing_secret")
-            ?: uri.getQueryParameter("pairingSecret")
+        val pairingSecret = queryParameters["pairing_secret"]
+            ?: queryParameters["pairingSecret"]
             ?: ""
-        val initiatorPublicKey = uri.getQueryParameter("initiator_public_key")
-            ?: uri.getQueryParameter("public_key")
-            ?: uri.getQueryParameter("initiatorPublicKey")
+        val initiatorPublicKey = queryParameters["initiator_public_key"]
+            ?: queryParameters["public_key"]
+            ?: queryParameters["initiatorPublicKey"]
             ?: ""
 
         return PairingQrPayload(
             relayBaseUrl = relayBaseUrl,
             pairingSessionId = pairingSessionId,
             pairingSecret = pairingSecret,
-            initiatorDeviceId = uri.getQueryParameter("initiator_device_id")
-                ?: uri.getQueryParameter("initiatorDeviceId"),
-            initiatorName = uri.getQueryParameter("initiator_name")
-                ?: uri.getQueryParameter("initiatorName"),
+            initiatorDeviceId = queryParameters["initiator_device_id"]
+                ?: queryParameters["initiatorDeviceId"],
+            initiatorName = queryParameters["initiator_name"]
+                ?: queryParameters["initiatorName"],
             initiatorPublicKey = initiatorPublicKey,
         )
     }
-}
 
+    private fun parseQueryParameters(rawValue: String): Map<String, String> {
+        val rawQuery = runCatching { URI(rawValue).rawQuery }
+            .getOrNull()
+            ?: rawValue.substringAfter('?', "")
+        if (rawQuery.isBlank()) {
+            return emptyMap()
+        }
+
+        val parameters = linkedMapOf<String, String>()
+        rawQuery.split('&').forEach { entry ->
+            if (entry.isBlank()) {
+                return@forEach
+            }
+
+            val parts = entry.split('=', limit = 2)
+            val key = decodeQueryComponent(parts[0])
+            if (key in parameters) {
+                return@forEach
+            }
+
+            val value = parts.getOrNull(1)?.let(::decodeQueryComponent) ?: ""
+            parameters[key] = value
+        }
+        return parameters
+    }
+
+    private fun decodeQueryComponent(value: String): String {
+        return URLDecoder.decode(value, StandardCharsets.UTF_8)
+    }
+}

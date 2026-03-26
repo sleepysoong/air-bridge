@@ -59,6 +59,7 @@ class AppContainer(
         context = appContext,
         providerAuthority = "${appContext.packageName}.clipboard",
     )
+    
     val bridgeRuntime = BridgeRuntime(
         appContext = appContext,
         parentScope = appScope,
@@ -67,7 +68,6 @@ class AppContainer(
         relayCredentialStore = relayCredentialStore,
         relayWebSocketClient = relayWebSocketClient,
         envelopeCipher = envelopeCipher,
-        clipboardApplyGateway = clipboardApplyGateway,
     )
     val notificationForwarder = NotificationForwarder(
         outboundSink = bridgeRuntime,
@@ -91,6 +91,8 @@ class AppContainer(
     )
 
     init {
+        bridgeRuntime.clipboardSyncCoordinator = clipboardSyncCoordinator
+        
         BridgeFeatureRegistry.notificationServiceDelegate = notificationForwarder
         BridgeFeatureRegistry.foregroundServiceDelegate = bridgeRuntime
     }

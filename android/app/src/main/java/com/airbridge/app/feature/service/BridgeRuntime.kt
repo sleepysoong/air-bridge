@@ -20,6 +20,7 @@ import com.airbridge.app.domain.NotificationPayload
 import com.airbridge.app.domain.StoredDeviceIdentity
 import com.airbridge.app.domain.StoredRelayCredentials
 import com.airbridge.app.feature.clipboard.ClipboardApplyGateway
+import com.airbridge.app.feature.clipboard.ClipboardSyncCoordinator
 import com.airbridge.app.feature.clipboard.buildClipboardFingerprint
 import com.airbridge.app.feature.common.BridgeForegroundServiceDelegate
 import com.airbridge.app.feature.common.ClipboardApplyOutcome
@@ -52,7 +53,6 @@ class BridgeRuntime(
     private val relayCredentialStore: RelayCredentialStore,
     private val relayWebSocketClient: RelayWebSocketClient,
     private val envelopeCipher: EnvelopeCipher,
-    private val clipboardApplyGateway: ClipboardApplyGateway,
 ) : ClipboardOutboundSink, NotificationOutboundSink, BridgeForegroundServiceDelegate {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob())
     private val mutableSnapshot = MutableStateFlow(BridgeRuntimeSnapshot())
@@ -64,6 +64,8 @@ class BridgeRuntime(
 
     @Volatile
     private var runtimeJob: Job? = null
+    
+    lateinit var clipboardSyncCoordinator: ClipboardSyncCoordinator
 
     val snapshot: StateFlow<BridgeRuntimeSnapshot> = mutableSnapshot.asStateFlow()
 
@@ -273,7 +275,7 @@ class BridgeRuntime(
                     peerPublicKeyBase64 = credentials.peerPublicKeyBase64,
                 )
                 val payload = json.decodeFromString(ClipboardPayload.serializer(), plaintext.decodeToString())
-                val applyOutcome = clipboardApplyGateway.apply(payload.toSnapshot())
+                val applyOutcome = clipboardSyncCoordinator.applyRemoteClipboard(payload.toSnapshot())
                 if (applyOutcome is ClipboardApplyOutcome.Applied) {
                     connection.acknowledgeEnvelope(incoming.envelopeId)
                     mutableSnapshot.value = mutableSnapshot.value.copy(

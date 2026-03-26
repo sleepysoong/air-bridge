@@ -24,6 +24,13 @@ class RelayHttpClient(
         deviceName: String,
         publicKeyBase64: String,
     ): PairingJoinResult = withContext(Dispatchers.IO) {
+        require(deviceName.length <= RelayServerLimits.MAX_DEVICE_NAME_LENGTH) {
+            "기기 이름은 ${RelayServerLimits.MAX_DEVICE_NAME_LENGTH}자를 넘을 수 없어요 (현재: ${deviceName.length}자)"
+        }
+        require(pairingSecret.length <= RelayServerLimits.MAX_PAIRING_SECRET_LENGTH) {
+            "페어링 비밀값은 ${RelayServerLimits.MAX_PAIRING_SECRET_LENGTH}자를 넘을 수 없어요 (현재: ${pairingSecret.length}자)"
+        }
+        
         val request = JoinPairingSessionRequest(
             pairingSecret = pairingSecret,
             deviceName = deviceName,
@@ -44,6 +51,10 @@ class RelayHttpClient(
         pairingSessionId: String,
         pairingSecret: String,
     ): PairingSessionSnapshot = withContext(Dispatchers.IO) {
+        require(pairingSecret.length <= RelayServerLimits.MAX_PAIRING_SECRET_LENGTH) {
+            "페어링 비밀값은 ${RelayServerLimits.MAX_PAIRING_SECRET_LENGTH}자를 넘을 수 없어요 (현재: ${pairingSecret.length}자)"
+        }
+        
         val response = executeJson<LookupPairingSessionResponse>(
             url = "${relayBaseUrl.normalizedBaseUrl()}/api/v1/pairing/sessions/$pairingSessionId/lookup",
             method = "POST",
@@ -58,6 +69,10 @@ class RelayHttpClient(
         pairingSessionId: String,
         pairingSecret: String,
     ): CompletePairingSessionResponse = withContext(Dispatchers.IO) {
+        require(pairingSecret.length <= RelayServerLimits.MAX_PAIRING_SECRET_LENGTH) {
+            "페어링 비밀값은 ${RelayServerLimits.MAX_PAIRING_SECRET_LENGTH}자를 넘을 수 없어요 (현재: ${pairingSecret.length}자)"
+        }
+        
         executeJson(
             url = "${relayBaseUrl.normalizedBaseUrl()}/api/v1/pairing/sessions/$pairingSessionId/complete",
             method = "POST",

@@ -1,109 +1,211 @@
 # Android 아키텍처
 
-이 문서는 Android 앱 구현을 시작할 때 기준이 되는 설계 문서예요.
+이 문서는 Android 앱의 설계와 구현 구조를 설명해요.
 
-현재 Android 코드는 아직 없지만, 나중에 여러 개발자가 동시에 들어와도 흔들리지 않게 역할, 제약, 파일 구조, 서버 연동 방법을 먼저 고정해둘게요.
+## 현재 구현 상태
 
-## Android 앱이 맡아야 할 책임
+Android 앱은 주요 기능이 이미 구현되어 있어요:
+- Jetpack Compose 기반 UI
+- QR 스캔 페어링 플로우
+- X25519 키 합의 + HKDF + AES-256-GCM 암호화
+- Relay HTTP/WebSocket 클라이언트
+- Foreground Service 기반 브리지 런타임
+- NotificationListenerService 알림 수집
+- 전경 클립보드 모니터링 (1.5초 폴링)
+- Mac→Android 클립보드 자동 적용
+- 클립보드 루프 방지
+- 서버 입력 제한 클라이언트 검증
+- QR 파싱, 암호화, SAS, Relay 매핑, 클립보드 동기화 단위 테스트
 
-- 사용자가 Mac과 Android를 페어링할 수 있어야 해요.
-- Android 알림을 수집해서 relay 서버로 보내야 해요.
-- Android에서 읽을 수 있는 범위 안에서 클립보드를 수집해야 해요.
-- Mac에서 온 클립보드 payload를 Android 클립보드에 적용해야 해요.
-- 암호화 키, relay token, 기기 식별자를 안전하게 저장해야 해요.
+## Android 앱이 맡는 책임
+
+- 사용자가 Mac과 Android를 페어링할 수 있어야 해요
+- Android 알림을 수집해서 relay 서버로 보내야 해요
+- Android에서 읽을 수 있는 범위 안에서 클립보드를 수집해야 해요
+- Mac에서 온 클립보드 payload를 Android 클립보드에 적용해야 해요
+- 암호화 키, relay token, 기기 식별자를 안전하게 저장해야 해요
 
 ## 플랫폼 제약
 
-- Android 10 이상에서는 일반 앱이 백그라운드에서 클립보드를 읽을 수 없어요.
-- 그래서 `Android -> Mac` 자동 동기화는 앱이 전경에 있을 때만 허용해야 해요.
-- 백그라운드 상황에서는 사용자가 수동으로 "지금 클립보드 보내기"를 눌러야 해요.
-- Android 12 이상에서는 클립보드 접근 시 시스템 토스트가 보일 수 있어요. 이건 운영체제 정책으로 받아들여야 해요.
+- Android 10 이상에서는 일반 앱이 백그라운드에서 클립보드를 읽을 수 없어요
+- 그래서 `Android -> Mac` 자동 동기화는 앱이 전경에 있을 때만 허용해야 해요
+- 백그라운드 상황에서는 사용자가 수동으로 "지금 클립보드 보내기"를 눌러야 해요
+- Android 12 이상에서는 클립보드 접근 시 시스템 토스트가 보일 수 있어요. 이건 운영체제 정책으로 받아들여야 해요
 
-## 권장 패키지 구조
-
-아직 생성되진 않았지만 아래 구조로 가야 해요.
+## 실제 패키지 구조
 
 ```text
 android/
 ├── README.md
 ├── architecture.md
+├── settings.gradle.kts
 └── app/
-    └── src/main/java/com/airbridge/app/
-        ├── app/
-        │   ├── AirBridgeApplication.kt
-        │   └── AppContainer.kt
-        ├── feature/pairing/
-        │   ├── PairingActivity.kt
-        │   ├── PairingViewModel.kt
-        │   └── PairingRepository.kt
-        ├── feature/clipboard/
-        │   ├── ClipboardSyncCoordinator.kt
-        │   ├── ClipboardReadGateway.kt
-        │   └── ClipboardApplyGateway.kt
-        ├── feature/notification/
-        │   ├── AirBridgeNotificationListenerService.kt
-        │   └── NotificationForwarder.kt
-        ├── data/crypto/
-        │   ├── SessionKeyStore.kt
-        │   └── EnvelopeCipher.kt
-        ├── data/relay/
-        │   ├── RelayHttpClient.kt
-        │   ├── RelayWebSocketClient.kt
-        │   └── RelayMessageMapper.kt
-        ├── data/storage/
-        │   ├── DeviceIdentityStore.kt
-        │   └── RelayCredentialStore.kt
-        └── domain/
-            ├── ClipboardPayload.kt
-            ├── NotificationPayload.kt
-            └── PairingModels.kt
+    ├── build.gradle.kts
+    └── src/main/
+        ├── AndroidManifest.xml
+        └── java/com/airbridge/app/
+            ├── app/
+            │   ├── AirBridgeApplication.kt
+            │   └── AppContainer.kt
+            ├── feature/
+            │   ├── pairing/
+            │   │   ├── PairingScreen.kt
+            │   │   ├── PairingViewModel.kt
+            │   │   ├── PairingRepository.kt
+            │   │   └── PairingQrParser.kt
+            │   ├── clipboard/
+            │   │   ├── ClipboardSyncCoordinator.kt
+            │   │   ├── ClipboardReadGateway.kt (Android implementation)
+            │   │   ├── ClipboardApplyGateway.kt (Android implementation)
+            │   │   └── ClipboardFormats.kt
+            │   ├── notification/
+            │   │   ├── AirBridgeNotificationListenerService.kt
+            │   │   ├── NotificationForwarder.kt
+            │   │   ├── NotificationPayloadNormalizer.kt
+            │   │   └── NotificationNoiseFilter.kt
+            │   ├── service/
+            │   │   ├── AirBridgeRelayForegroundService.kt
+            │   │   ├── BridgeRuntime.kt
+            │   │   └── BridgeForegroundNotificationFactory.kt
+            │   └── common/
+            │       ├── BridgeFeatureRegistry.kt
+            │       └── [공통 계약 인터페이스들]
+            ├── data/
+            │   ├── crypto/
+            │   │   ├── SessionKeyStore.kt
+            │   │   ├── EnvelopeCipher.kt
+            │   │   └── Base64Utils.kt
+            │   ├── relay/
+            │   │   ├── RelayHttpClient.kt
+            │   │   ├── RelayWebSocketClient.kt
+            │   │   ├── RelayMessageMapper.kt
+            │   │   └── RelayServerLimits.kt
+            │   └── storage/
+            │       ├── SecurePreferencesStore.kt
+            │       ├── DeviceIdentityStore.kt
+            │       └── RelayCredentialStore.kt
+            ├── domain/
+            │   ├── ClipboardPayload.kt
+            │   ├── NotificationPayload.kt
+            │   ├── PairingModels.kt
+            │   ├── BridgeEnvelope.kt
+            │   └── BridgeChannel.kt
+            ├── ui/theme/
+            │   ├── Color.kt
+            │   └── Theme.kt
+            └── MainActivity.kt
 ```
 
 ## 계층별 역할
 
+### `app/`
+
+- `AirBridgeApplication`: 앱 부트스트랩, AppContainer 초기화
+- `AppContainer`: 수동 의존성 주입 컨테이너, 모든 주요 컴포넌트 조립
+- `MainActivity`: Compose UI 진입점, QR 스캔, 권한 요청 플로우
+
 ### `feature/pairing`
 
-- QR 스캔과 세션 참여를 처리해야 해요.
-- relay 서버의 pairing API를 호출해야 해요.
-- X25519 공개키 교환과 SAS 확인에 필요한 UI 상태를 관리해야 해요.
+- `PairingScreen`: Compose UI, 페어링 상태 표시
+- `PairingViewModel`: 페어링 플로우 상태 관리
+- `PairingRepository`: Relay HTTP API 호출 (join, lookup, complete)
+- `PairingQrParser`: QR JSON/URI 파싱
 
 ### `feature/clipboard`
 
-- Android 전경 상태에서만 클립보드 자동 감시를 켜야 해요.
-- 수동 전송 버튼도 같은 coordinator를 통해 동작해야 해요.
-- 수신 payload를 Android 클립보드에 쓸 때는 로컬 반사 루프를 막을 장치가 있어야 해요.
+- `ClipboardSyncCoordinator`: 전경 자동 모니터링 + 수동 전송 조율, 루프 방지 (`lastAppliedFingerprint`, `lastSentFingerprint`)
+- `AndroidClipboardReadGateway`: Android 클립보드 읽기, MIME 타입 정규화
+- `AndroidClipboardApplyGateway`: Mac→Android 클립보드 적용, ContentProvider 기반 바이너리 캐시
+- `ClipboardFormats`: 지원 MIME 타입 상수
 
 ### `feature/notification`
 
-- `NotificationListenerService`를 사용해서 `posted`, `updated`, `removed` 이벤트를 잡아야 해요.
-- 패키지명, 앱 이름, 제목, 본문, timestamp, ongoing 여부를 정규화해서 보내야 해요.
-- `air-bridge` 자체 알림과 foreground service 잡음은 여기서 필터링해야 해요.
+- `AirBridgeNotificationListenerService`: Android NotificationListenerService 구현
+- `NotificationForwarder`: posted/updated/removed 이벤트 전달
+- `NotificationPayloadNormalizer`: 알림 정규화
+- `NotificationNoiseFilter`: self/service 알림 필터링
+
+### `feature/service`
+
+- `AirBridgeRelayForegroundService`: Foreground Service 앵커 (START_STICKY)
+- `BridgeRuntime`: WebSocket 연결 루프, 송수신, 암복호화, ack 처리
+- `BridgeForegroundNotificationFactory`: Foreground notification 생성
 
 ### `data/crypto`
 
-- Android Keystore와 encrypted storage를 사용해서 relay token과 세션 키를 저장해야 해요.
-- 실제 payload 암호화는 `AES-256-GCM`이어야 해요.
-- relay로 나가는 JSON이나 WebSocket 메시지에는 평문 payload를 넣지 말아야 해요.
+- `SessionKeyStore`: X25519 키 생성, ECDH 공유 비밀, HKDF-SHA256
+- `EnvelopeCipher`: AES-256-GCM 암복호화, SAS 6자리 생성, 서버 입력 제한 검증
 
 ### `data/relay`
 
-- pairing용 HTTP 호출과 실시간 전달용 WebSocket 연결을 분리해야 해요.
-- 서버 API 필드명과 Android 내부 모델을 분리해서 mapper를 둬야 해요.
-- 네트워크 오류, reconnect, ack 재시도 정책을 여기서 다뤄야 해요.
+- `RelayHttpClient`: Pairing HTTP API (join, lookup, complete)
+- `RelayWebSocketClient`: WebSocket 연결, 메시지 송수신
+- `RelayMessageMapper`: Wire ↔ Domain 변환
+- `RelayServerLimits`: 서버 입력 제한 상수 (device_name 128자, ciphertext 20MiB+16bytes 등)
+
+### `data/storage`
+
+- `SecurePreferencesStore`: Android Keystore 기반 AES-GCM 암호화 SharedPreferences
+- `DeviceIdentityStore`: 로컬 기기 ID + X25519 비밀키 저장
+- `RelayCredentialStore`: Pairing session ID, device ID, relay token, peer public key 저장
+
+### `domain/`
+
+- `ClipboardPayload`: 정규화된 클립보드 payload (text, html, rtf, image/png, image/jpeg, uri-list)
+- `NotificationPayload`: 정규화된 알림 payload (package, app, title, text, timestamp, ongoing)
+- `PairingModels`: 페어링 세션, 기기 신원, relay 인증 정보 모델
+- `BridgeEnvelope`: 암호화 envelope (channel, content_type, nonce, header_aad, ciphertext)
+- `BridgeChannel`: CLIPBOARD, NOTIFICATION enum
+
+## 데이터 플로우
+
+### 페어링 플로우 (Android Joiner)
+
+1. Mac이 QR 생성 → Android가 `PairingQrParser`로 파싱
+2. `PairingRepository.joinPairing()` → Relay `POST /join` 호출
+   - device_name 128자 검증
+   - pairing_secret 128자 검증
+3. X25519 키 생성, SAS 계산
+4. 사용자 SAS 확인 → `PairingRepository.completePairing()` → Relay `POST /complete`
+5. Credentials 저장 (DeviceIdentityStore, RelayCredentialStore)
+
+### 클립보드 플로우 (Android → Mac)
+
+1. `MainActivity.onStart()` → `ClipboardSyncCoordinator.startForegroundMonitoring()`
+2. 1.5초마다 `ClipboardReadGateway.readCurrentClipboard()`
+3. Fingerprint 계산, `lastSentFingerprint`/`lastAppliedFingerprint`와 비교
+4. 새 클립보드면 `BridgeRuntime.publishClipboard()`
+5. `EnvelopeCipher.encrypt()` → content_type/nonce/header_aad/ciphertext 검증
+6. `RelayWebSocketClient.sendEnvelope()` → Relay 전송
+
+### 클립보드 플로우 (Mac → Android)
+
+1. Relay → `BridgeRuntime` WebSocket 수신
+2. `EnvelopeCipher.decrypt()`
+3. `ClipboardSyncCoordinator.applyRemoteClipboard()` (루프 방지)
+4. `ClipboardApplyGateway.apply()` → Android 클립보드 적용
+5. `lastAppliedFingerprint` 업데이트 → 재전송 방지
+
+### 알림 플로우 (Android → Mac)
+
+1. `AirBridgeNotificationListenerService.onNotificationPosted()`
+2. `NotificationNoiseFilter` → self/service 필터링
+3. `NotificationPayloadNormalizer` → 정규화
+4. `NotificationForwarder.publishNotification()`
+5. `BridgeRuntime` → 암호화 → Relay 전송
 
 ## 서버 API 사용 방법
 
 Android는 아래 흐름을 따라야 해요.
+### 1. 페어링 참여 (현재 구현됨)
 
-### 1. 페어링 참여
-
-Mac이 만든 QR에서 아래 정보를 얻어야 해요.
+QR 스캔으로 얻은 정보:
 - `pairing_session_id`
 - `pairing_secret`
 - relay base URL
-- Mac public key
+- initiator public key
 
-그 다음 아래 API를 호출해야 해요.
+`RelayHttpClient.joinPairingSession()` 호출:
 
 ```http
 POST /api/v1/pairing/sessions/{sessionID}/join
@@ -117,16 +219,18 @@ Content-Type: application/json
 }
 ```
 
-응답으로 아래 값을 받아야 해요.
+응답:
 - `joiner_device_id`
 - `joiner_relay_token`
 - `initiator_device_id`
 - `initiator_public_key`
 
-### 2. 페어링 상태 확인
+### 2. SAS 확인 후 완료 (현재 구현됨)
+
+`RelayHttpClient.completePairingSession()` 호출:
 
 ```http
-POST /api/v1/pairing/sessions/{sessionID}/lookup
+POST /api/v1/pairing/sessions/{sessionID}/complete
 Content-Type: application/json
 
 {
@@ -134,54 +238,80 @@ Content-Type: application/json
 }
 ```
 
-이 응답을 바탕으로 SAS 확인에 필요한 상대 기기 정보를 보여줘야 해요.
+### 3. WebSocket 연결 (현재 구현됨)
 
-### 3. WebSocket 연결
+`RelayWebSocketClient.connect()`:
 
 ```text
 GET /api/v1/ws?device_id=dev_xxx&relay_token=rt_xxx
 ```
 
-연결 후 받을 수 있는 메시지는 아래와 같아요.
-- `connected`
-- `envelope`
-- `pong`
-- `error`
+수신 메시지:
+- `connected`: 연결 성공
+- `envelope`: 암호화된 payload (clipboard 또는 notification)
+- `pong`: ping 응답
+- `error`: 서버 오류
 
-Android가 보낼 수 있는 메시지는 아래와 같아요.
-- `ping`
-- `send_envelope`
-- `ack_envelope`
+송신 메시지:
+- `ping`: 연결 유지
+- `send_envelope`: 암호화 envelope 전송
+- `ack_envelope`: 수신 확인
 
-## 서버 입력 제한 메모
+## 서버 입력 제한 (클라이언트 검증 구현됨)
 
-Android 네트워크 계층은 아래 상한을 클라이언트에서도 알고 있어야 해요.
+`RelayServerLimits.kt`에 정의된 제한값:
 
-- pairing 관련 HTTP JSON 본문은 최대 `16 KiB`예요.
-- `device_name`과 `pairing_secret`는 서버 길이 제한을 넘기면 안 돼요.
-- `content_type`은 최대 `255`바이트예요.
-- `nonce`는 최대 `64`바이트예요.
-- `header_aad`는 최대 `16 KiB`예요.
-- `ciphertext`는 최대 `20 MiB + 16 bytes`예요.
-- WebSocket 클라이언트 메시지는 최대 `28 MiB`예요.
+- `device_name`: 최대 128자
+- `pairing_secret`: 최대 128자
+- `content_type`: 최대 255바이트
+- `nonce`: 최대 64바이트
+- `header_aad`: 최대 16 KiB
+- `ciphertext`: 최대 20 MiB + 16 bytes (GCM tag)
+- WebSocket 메시지: 최대 28 MiB
 
-이 상한을 넘는 값은 relay로 보내기 전에 Android 쪽에서 먼저 거부해야 해요.
+`RelayHttpClient`와 `EnvelopeCipher`에서 서버 전송 전 검증해요.
 
-## Android가 서버에 보내는 payload 방향
+## Payload 방향
 
-### 알림 전달
+### 알림 전달 (구현됨)
 
-- Android 알림을 앱 내부 `NotificationPayload`로 정규화해야 해요.
-- 그 payload를 직렬화하고 암호화한 뒤 `channel=notification`으로 보내야 해요.
+- `NotificationPayloadNormalizer` → `NotificationPayload` 정규화
+- JSON 직렬화 + 암호화 → `channel=notification`
+- `BridgeRuntime` → Relay 전송
 
-### 클립보드 전달
+### 클립보드 전달 (구현됨)
 
-- 지원 포맷만 canonical `ClipboardPayload`로 변환해야 해요.
-- 변환 실패나 미지원 포맷은 사용자에게 분명하게 보여줘야 해요.
-- 암호화 후 `channel=clipboard`로 보내야 해요.
+- 지원 포맷: text/plain, text/html, text/rtf, text/uri-list, image/png, image/jpeg
+- `ClipboardReadGateway` → `ClipboardPayload` 변환
+- JSON 직렬화 + 암호화 → `channel=clipboard`
+- `BridgeRuntime` → Relay 전송
 
-## Android 구현 시 협업 포인트
+## 보안 구현
 
-- 서버 계약은 `server/architecture.md` 기준으로 맞춰야 해요.
-- macOS가 기대하는 canonical payload 구조와 Android가 만드는 구조는 완전히 같아야 해요.
-- Android는 운영체제 제약이 가장 큰 영역이기 때문에, 구현 전마다 제약 검증을 먼저 해야 해요.
+- **키 저장**: `SecurePreferencesStore` (Android Keystore AES-GCM 암호화)
+- **키 합의**: X25519 ECDH
+- **키 파생**: HKDF-SHA256
+- **Payload 암호화**: AES-256-GCM (12-byte nonce, 128-bit tag)
+- **SAS**: HKDF로 4바이트 파생 → 6자리 숫자
+- **전송 보안**: HTTPS + WebSocket (서버 설정에 따라 WSS)
+
+## 알려진 제한사항 및 다음 작업
+
+### 현재 미구현:
+- 실제 Gradle/디바이스 환경 빌드 검증
+- instrumentation 테스트
+- heartbeat/ping 루프 (코드 있지만 미사용)
+- ack 재시도 정책
+- 송신 큐 영속화 (연결 끊김 시 메시지 유실 가능)
+- 부팅 후 자동 복구 (BOOT_COMPLETED receiver 없음)
+- NotificationListener 연결 해제 처리
+
+### 버그 수정 완료:
+- ✅ 클립보드 루프 방지 (Mac→Android 적용 후 재전송 방지)
+- ✅ 서버 입력 제한 클라이언트 검증
+
+## 협업 포인트
+
+- 서버 계약은 `server/architecture.md` 기준을 따라요
+- macOS가 기대하는 canonical payload 구조와 Android가 만드는 구조는 완전히 같아야 해요
+- Android는 운영체제 제약이 가장 큰 영역이기 때문에, 구현 전마다 제약 검증을 먼저 해야 해요
