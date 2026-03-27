@@ -11,13 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.Color
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airbridge.app.app.AirBridgeApplication
@@ -26,9 +21,60 @@ import com.airbridge.app.feature.pairing.PairingViewModel
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
+import com.airbridge.app.ui.theme.AirBridgeTheme
+
 class MainActivity : ComponentActivity() {
     private val viewModel: PairingViewModel by viewModels {
         PairingViewModel.factory((application as AirBridgeApplication).container)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+
+        setContent {
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val notificationAccessLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                viewModel.updateNotificationAccess(granted || isNotificationAccessGranted())
+            }
+            val qrScannerLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+                result.contents?.let(viewModel::applyScannedQr)
+            }
+
+            LaunchedEffect(Unit) {
+                viewModel.updateNotificationAccess(isNotificationAccessGranted())
+            }
+
+            AirBridgeTheme {
+                PairingScreen(
+                    uiState = uiState,
+                    onDeviceNameChanged = viewModel::updateDeviceName,
+                    onQrPayloadChanged = viewModel::updateQrPayload,
+                    onPreparePairing = viewModel::preparePairing,
+                    onCompletePairing = viewModel::completePairing,
+                    onManualClipboardSend = viewModel::sendClipboardNow,
+                    onOpenNotificationAccess = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION.CODES.TIRAMISU) {
+                            notificationAccessLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    },
+                    onStartBridge = viewModel::startBridge,
+                    onDismissBanner = viewModel::dismissBanner,
+                    onScanQr = {
+                        qrScannerLauncher.launch(
+                            ScanOptions()
+                                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                .setPrompt("Mac 화면의 air-bridge QR 코드를 스캔하세요.")
+                                .setBeepEnabled(false)
+                                .setOrientationLocked(false),
+                        )
+                    },
+                )
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
