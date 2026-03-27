@@ -1,0 +1,1 @@
+Android clipboard reading uses `DualClipboardReadGateway` to prefer Shizuku when available and fall back to the standard gateway otherwise. Both Android clipboard readers now avoid downgrading `content://` image clips into `text/uri-list` and sniff PNG/JPEG magic bytes when clipboard metadata is incomplete, which fixes Android->Mac image clipboard sync.
