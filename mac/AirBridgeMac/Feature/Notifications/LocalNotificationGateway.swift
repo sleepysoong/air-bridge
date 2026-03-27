@@ -1,7 +1,6 @@
 import Foundation
 import UserNotifications
 
-@MainActor
 final class LocalNotificationGateway {
     private let center: UNUserNotificationCenter
 
