@@ -57,7 +57,8 @@ final class AppContainer {
         PairingViewModel(
             appState: appState,
             appContainer: self,
-            pairingCoordinator: pairingCoordinator
+            pairingCoordinator: pairingCoordinator,
+            clientFactory: makeRelayHTTPClient
         )
     }
 

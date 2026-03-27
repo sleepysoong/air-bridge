@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class PairingViewModel: ObservableObject {
     @Published private(set) var activeDraft: PairingDraft?
+    @Published private(set) var relayAddresses: [String] = []
     @Published private(set) var latestSnapshot: PairingSessionSnapshot?
     @Published private(set) var shortAuthenticationString: String?
     @Published private(set) var isBusy = false
@@ -12,16 +13,19 @@ final class PairingViewModel: ObservableObject {
     private weak var appContainer: AppContainer?
     private let appState: AppState
     private let pairingCoordinator: PairingCoordinator
+    private let clientFactory: (URL) -> any RelayPairingClient
     private var pollingTask: Task<Void, Never>?
 
     init(
         appState: AppState,
         appContainer: AppContainer,
-        pairingCoordinator: PairingCoordinator
+        pairingCoordinator: PairingCoordinator,
+        clientFactory: @escaping (URL) -> any RelayPairingClient
     ) {
         self.appState = appState
         self.appContainer = appContainer
         self.pairingCoordinator = pairingCoordinator
+        self.clientFactory = clientFactory
     }
 
     deinit {
@@ -29,11 +33,11 @@ final class PairingViewModel: ObservableObject {
     }
 
     var qrPayloadString: String? {
-        guard let activeDraft else {
+        guard let activeDraft, !relayAddresses.isEmpty else {
             return nil
         }
 
-        let payload = pairingCoordinator.qrPayload(for: activeDraft)
+        let payload = pairingCoordinator.qrPayload(for: activeDraft, relayAddresses: relayAddresses)
         guard let data = try? JSONEncoder.airBridge.encode(payload) else {
             return nil
         }
@@ -60,6 +64,12 @@ final class PairingViewModel: ObservableObject {
 
         do {
             appState.persistEditablePreferences()
+
+            let client = clientFactory(relayURL)
+            let addresses = try await client.fetchServerAddresses()
+            relayAddresses = addresses
+            DesktopFileLogger.log("Fetched relay addresses: \(addresses)")
+
             let draft = try await pairingCoordinator.startPairing(
                 relayBaseURL: relayURL,
                 deviceName: appState.deviceName
@@ -140,6 +150,7 @@ final class PairingViewModel: ObservableObject {
     func cancelDraft() {
         stopPolling()
         activeDraft = nil
+        relayAddresses = []
         latestSnapshot = nil
         shortAuthenticationString = nil
         pairingMessage = nil

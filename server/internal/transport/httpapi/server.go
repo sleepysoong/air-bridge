@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -61,6 +62,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("GET /api/v1/server/info", s.handleServerInfo)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions", s.handleCreatePairingSession)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/lookup", s.handleLookupPairingSession)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/join", s.handleJoinPairingSession)
@@ -72,6 +74,65 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ok",
 	})
+}
+
+type serverInfoResponse struct {
+	Addresses []string `json:"addresses"`
+}
+
+func (s *Server) handleServerInfo(w http.ResponseWriter, _ *http.Request) {
+	addresses := s.collectServerAddresses()
+	writeJSON(w, http.StatusOK, serverInfoResponse{
+		Addresses: addresses,
+	})
+}
+
+func (s *Server) collectServerAddresses() []string {
+	port := s.config.HTTPAddress
+	if strings.HasPrefix(port, ":") {
+		port = port[1:]
+	} else if idx := strings.LastIndex(port, ":"); idx != -1 {
+		port = port[idx+1:]
+	}
+
+	var addresses []string
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		s.logger.Warn("네트워크 인터페이스 목록을 가져오지 못했어요", "error", err)
+		return addresses
+	}
+
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+
+			if ip4 := ip.To4(); ip4 != nil {
+				addresses = append(addresses, fmt.Sprintf("http://%s:%s", ip4.String(), port))
+			}
+		}
+	}
+
+	return addresses
 }
 
 type createPairingSessionRequest struct {

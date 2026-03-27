@@ -26,18 +26,20 @@ class PairingRepository(
         qrPayload: PairingQrPayload,
         requestedDeviceName: String,
     ): PendingPairingSession {
+        val workingRelayUrl = relayHttpClient.findWorkingRelayUrl(qrPayload.relayAddresses)
+        
         val localIdentity = sessionKeyStore.generateLocalIdentity(
             deviceName = requestedDeviceName.ifBlank { defaultDeviceName() },
         )
         val joinResult = relayHttpClient.joinPairingSession(
-            relayBaseUrl = qrPayload.relayBaseUrl,
+            relayBaseUrl = workingRelayUrl,
             pairingSessionId = qrPayload.pairingSessionId,
             pairingSecret = qrPayload.pairingSecret,
             deviceName = localIdentity.deviceName,
             publicKeyBase64 = localIdentity.publicKeyBase64,
         )
         val snapshot = relayHttpClient.lookupPairingSession(
-            relayBaseUrl = qrPayload.relayBaseUrl,
+            relayBaseUrl = workingRelayUrl,
             pairingSessionId = qrPayload.pairingSessionId,
             pairingSecret = qrPayload.pairingSecret,
         )
@@ -51,6 +53,7 @@ class PairingRepository(
 
         return PendingPairingSession(
             qrPayload = qrPayload,
+            resolvedRelayUrl = workingRelayUrl,
             sessionSnapshot = snapshot,
             joinResult = joinResult,
             localIdentity = localIdentity,
@@ -60,16 +63,17 @@ class PairingRepository(
 
     suspend fun completePairing(pendingPairingSession: PendingPairingSession): StoredRelayCredentials {
         val qrPayload = pendingPairingSession.qrPayload
+        val relayBaseUrl = pendingPairingSession.resolvedRelayUrl
         val completedAt = runCatching {
             relayHttpClient.completePairingSession(
-                relayBaseUrl = qrPayload.relayBaseUrl,
+                relayBaseUrl = relayBaseUrl,
                 pairingSessionId = qrPayload.pairingSessionId,
                 pairingSecret = qrPayload.pairingSecret,
             ).completedAt
         }.recoverCatching { error ->
             if (error is RelayApiException && error.code == "conflict") {
                 val snapshot = relayHttpClient.lookupPairingSession(
-                    relayBaseUrl = qrPayload.relayBaseUrl,
+                    relayBaseUrl = relayBaseUrl,
                     pairingSessionId = qrPayload.pairingSessionId,
                     pairingSecret = qrPayload.pairingSecret,
                 )
@@ -81,7 +85,7 @@ class PairingRepository(
         }.getOrThrow()
 
         val credentials = StoredRelayCredentials(
-            relayBaseUrl = qrPayload.relayBaseUrl,
+            relayBaseUrl = relayBaseUrl,
             pairingSessionId = qrPayload.pairingSessionId,
             pairingSecret = qrPayload.pairingSecret,
             localDeviceId = pendingPairingSession.joinResult.joinerDeviceId,

@@ -1,6 +1,8 @@
 import Foundation
 
 protocol RelayPairingClient {
+    func fetchServerAddresses() async throws -> [String]
+
     func createPairingSessionResponse(
         deviceName: String,
         platform: AirBridgePlatform,
@@ -42,6 +44,11 @@ final class RelayHTTPClient: RelayPairingClient {
     init(baseURL: URL, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
+    }
+
+    func fetchServerAddresses() async throws -> [String] {
+        let response: ServerInfoResponse = try await sendGET(path: "/api/v1/server/info")
+        return response.addresses
     }
 
     func createPairingSessionResponse(
@@ -122,6 +129,16 @@ final class RelayHTTPClient: RelayPairingClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONEncoder.airBridge.encode(body)
+
+        let (data, response) = try await session.data(for: request)
+        return try decodeResponse(data: data, response: response)
+    }
+
+    private func sendGET<Response: Decodable>(path: String) async throws -> Response {
+        let requestURL = try makeURL(path: path)
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let (data, response) = try await session.data(for: request)
         return try decodeResponse(data: data, response: response)
@@ -248,4 +265,8 @@ private struct CompletePairingSessionRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case pairingSecret = "pairing_secret"
     }
+}
+
+private struct ServerInfoResponse: Decodable {
+    let addresses: [String]
 }

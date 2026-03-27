@@ -6,8 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PairingQrPayload(
     val version: Int = 1,
-    @SerialName("relay_base_url")
-    val relayBaseUrl: String,
+    @SerialName("relay_addresses")
+    val relayAddresses: List<String>,
     @SerialName("pairing_session_id")
     val pairingSessionId: String,
     @SerialName("pairing_secret")
@@ -63,6 +63,7 @@ data class PairingJoinResult(
 
 data class PendingPairingSession(
     val qrPayload: PairingQrPayload,
+    val resolvedRelayUrl: String,
     val sessionSnapshot: PairingSessionSnapshot,
     val joinResult: PairingJoinResult,
     val localIdentity: StoredDeviceIdentity,

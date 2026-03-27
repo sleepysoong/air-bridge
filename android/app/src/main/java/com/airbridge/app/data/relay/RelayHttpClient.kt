@@ -17,6 +17,37 @@ class RelayHttpClient(
     private val okHttpClient: OkHttpClient,
     private val json: Json,
 ) {
+    suspend fun findWorkingRelayUrl(
+        relayAddresses: List<String>,
+    ): String = withContext(Dispatchers.IO) {
+        require(relayAddresses.isNotEmpty()) { "relay 주소 목록이 비어 있어요" }
+
+        for (address in relayAddresses) {
+            val success = tryConnectRelay(address)
+            if (success) {
+                return@withContext address
+            }
+        }
+
+        throw RelayApiException(
+            code = "connection_failed",
+            message = "어떤 relay 주소에도 연결할 수 없어요. 주소 목록: $relayAddresses",
+            statusCode = 0,
+        )
+    }
+
+    private suspend fun tryConnectRelay(baseUrl: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("${baseUrl.normalizedBaseUrl()}/api/v1/server/info")
+                .get()
+                .build()
+            okHttpClient.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
+        }.getOrDefault(false)
+    }
+
     suspend fun joinPairingSession(
         relayBaseUrl: String,
         pairingSessionId: String,
