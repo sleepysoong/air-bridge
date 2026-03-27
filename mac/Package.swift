@@ -16,7 +16,15 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AirBridgeMac",
-            path: "AirBridgeMac"
+            path: "AirBridgeMac",
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate",
+                    "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist",
+                    "-Xlinker", "AirBridgeMac/Info.plist"
+                ])
+            ]
         ),
         .testTarget(
             name: "AirBridgeMacTests",
