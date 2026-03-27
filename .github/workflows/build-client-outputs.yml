@@ -163,16 +163,17 @@ jobs:
       - name: Verify app signature
         run: codesign --verify --deep --strict --verbose=2 "dist/AirBridgeMac.app"
 
-      - name: Prepare macOS output
+      - name: Create DMG
         run: |
           mkdir -p outputs/mac
-          ditto -c -k --sequesterRsrc --keepParent "dist/AirBridgeMac.app" "outputs/mac/air-bridge_v${{ needs.changes.outputs.app_version }}.zip"
+          DMG_NAME="air-bridge_v${{ needs.changes.outputs.app_version }}.dmg"
+          hdiutil create -volname "AirBridge" -srcfolder "dist/AirBridgeMac.app" -ov -format UDZO "outputs/mac/$DMG_NAME"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: mac-output
-          path: outputs/mac/air-bridge_v${{ needs.changes.outputs.app_version }}.zip
+          path: outputs/mac/air-bridge_v${{ needs.changes.outputs.app_version }}.dmg
 
   publish-outputs:
     needs: [changes, build-android, build-mac]
