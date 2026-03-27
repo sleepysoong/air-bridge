@@ -27,7 +27,6 @@ type PairingState string
 
 const (
 	PairingStatePending   PairingState = "pending"
-	PairingStateReady     PairingState = "ready"
 	PairingStateCompleted PairingState = "completed"
 )
 

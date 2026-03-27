@@ -22,15 +22,13 @@ data class PairingQrPayload(
 
 enum class PairingSessionState {
     PENDING,
-    READY,
     COMPLETED,
     UNKNOWN;
 
     companion object {
         fun fromWire(value: String): PairingSessionState = when (value.lowercase()) {
             "pending" -> PENDING
-            "ready" -> READY
-            "completed" -> COMPLETED
+            "ready", "completed" -> COMPLETED
             else -> UNKNOWN
         }
     }
@@ -61,15 +59,6 @@ data class PairingJoinResult(
     val expiresAt: String,
 )
 
-data class PendingPairingSession(
-    val qrPayload: PairingQrPayload,
-    val resolvedRelayUrl: String,
-    val sessionSnapshot: PairingSessionSnapshot,
-    val joinResult: PairingJoinResult,
-    val localIdentity: StoredDeviceIdentity,
-    val sasCode: String,
-)
-
 @Serializable
 data class StoredDeviceIdentity(
     val deviceName: String,
@@ -92,4 +81,3 @@ data class StoredRelayCredentials(
     val joinedAt: String,
     val completedAt: String?,
 )
-

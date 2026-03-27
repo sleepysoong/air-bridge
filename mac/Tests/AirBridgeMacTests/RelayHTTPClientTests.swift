@@ -59,7 +59,7 @@ final class RelayHTTPClientTests: XCTestCase {
         }
 
         let snapshot = try await client.lookupPairingSession(sessionID: "ps_1", pairingSecret: "prs_1")
-        XCTAssertEqual(snapshot.state, .ready)
+        XCTAssertEqual(snapshot.state, .completed)
         XCTAssertEqual(snapshot.joinerDeviceID, "dev_2")
     }
 
@@ -74,7 +74,7 @@ final class RelayHTTPClientTests: XCTestCase {
         }
 
         do {
-            _ = try await client.completePairingSession(sessionID: "ps_1", pairingSecret: "prs_1")
+            _ = try await client.lookupPairingSession(sessionID: "ps_1", pairingSecret: "prs_1")
             XCTFail("Expected conflict error.")
         } catch let error as RelayHTTPClientError {
             guard case .serviceError(let payload) = error else {

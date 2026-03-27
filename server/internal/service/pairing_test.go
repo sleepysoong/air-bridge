@@ -107,7 +107,7 @@ func TestPairingServiceGetSessionRejectsExpiredSession(t *testing.T) {
 	}
 }
 
-func TestPairingServiceJoinAndCompleteSession(t *testing.T) {
+func TestPairingServiceJoinCompletesSessionImmediately(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -118,8 +118,8 @@ func TestPairingServiceJoinAndCompleteSession(t *testing.T) {
 
 	createResult, joinResult := createReadyPair(t, ctx, service, baseTime)
 
-	if joinResult.Session.State != domain.PairingStateReady {
-		t.Fatalf("참여 뒤 세션 상태는 ready 여야 해요. 실제 값: %q", joinResult.Session.State)
+	if joinResult.Session.State != domain.PairingStateCompleted {
+		t.Fatalf("참여 뒤 세션 상태는 completed 여야 해요. 실제 값: %q", joinResult.Session.State)
 	}
 
 	initiatorDevice, err := store.GetDevice(ctx, createResult.InitiatorDevice.ID)
@@ -140,43 +140,8 @@ func TestPairingServiceJoinAndCompleteSession(t *testing.T) {
 		t.Fatalf("참여 기기의 peer 는 %q 이어야 해요. 실제 값: %q", createResult.InitiatorDevice.ID, joinerDevice.PeerDeviceID)
 	}
 
-	service.now = func() time.Time { return baseTime.Add(2 * time.Minute) }
-
-	completedSession, err := service.CompleteSession(ctx, createResult.Session.ID, createResult.PairingSecret)
-	if err != nil {
-		t.Fatalf("세션을 완료하지 못했어요: %v", err)
-	}
-
-	if completedSession.State != domain.PairingStateCompleted {
-		t.Fatalf("세션 상태는 completed 여야 해요. 실제 값: %q", completedSession.State)
-	}
-
-	if completedSession.CompletedAt == nil {
+	if joinResult.Session.CompletedAt == nil {
 		t.Fatal("completed_at 값이 설정되어야 해요")
-	}
-}
-
-func TestPairingServiceCompleteRejectsPendingSession(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	store := openTestStore(t)
-
-	service := NewPairingService(newDiscardLogger(), store, 10*time.Minute)
-	service.now = func() time.Time { return time.UnixMilli(1_700_000_400_000).UTC() }
-
-	createResult, err := service.CreateSession(ctx, CreatePairingSessionInput{
-		InitiatorDeviceName: "sleepysoong-macbook-air",
-		InitiatorPlatform:   domain.PlatformMacOS,
-		InitiatorPublicKey:  x25519PublicKey(0x34),
-	})
-	if err != nil {
-		t.Fatalf("세션을 생성하지 못했어요: %v", err)
-	}
-
-	_, err = service.CompleteSession(ctx, createResult.Session.ID, createResult.PairingSecret)
-	if !errors.Is(err, ErrConflict) {
-		t.Fatalf("충돌 오류가 반환되어야 해요. 실제 값: %v", err)
 	}
 }
 

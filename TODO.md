@@ -11,7 +11,7 @@
 - [x] 인증된 WebSocket 진입점을 추가했어요.
 - [x] 암호화 envelope 큐와 acknowledgment 흐름을 넣었어요.
 - [x] 페어링, 인증, 큐 전달, 만료 정리에 대한 자동화 테스트를 추가했어요.
-- [ ] SAS 확인 단계를 클라이언트와 함께 맞출 수 있도록 문서와 인터페이스를 더 구체화해야 해요.
+- [ ] QR만으로 끝나는 페어링 흐름에 맞춰 실제 E2E 검증을 더 촘촘히 해야 해요.
 - [ ] rate limiting, metrics, 운영 로그 정책을 보강해야 해요.
 - [ ] relay token 회전과 기기 revoke 흐름을 추가해야 해요.
 - [x] 개인용 클라우드 배포용 최소 배포 자산을 추가했어요.
@@ -31,4 +31,4 @@
 - [x] `NSPasteboard` 감시와 canonical clipboard payload 송신을 구현했어요.
 - [x] Android 알림을 `UNUserNotificationCenter`로 미러링하게 만들었어요.
 - [x] 수신한 클립보드 payload를 macOS pasteboard에 적용하게 만들었어요.
-- [ ] Android와 SAS/payload 계약을 최종 확정하고 실제 E2E 검증을 해야 해요.
+- [ ] Android와 macOS payload 계약을 최종 확정하고 실제 E2E 검증을 해야 해요.

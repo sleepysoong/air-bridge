@@ -95,23 +95,6 @@ class RelayHttpClient(
         response.toDomain()
     }
 
-    suspend fun completePairingSession(
-        relayBaseUrl: String,
-        pairingSessionId: String,
-        pairingSecret: String,
-    ): CompletePairingSessionResponse = withContext(Dispatchers.IO) {
-        require(pairingSecret.length <= RelayServerLimits.MAX_PAIRING_SECRET_LENGTH) {
-            "페어링 비밀값은 ${RelayServerLimits.MAX_PAIRING_SECRET_LENGTH}자를 넘을 수 없어요 (현재: ${pairingSecret.length}자)"
-        }
-        
-        executeJson(
-            url = "${relayBaseUrl.normalizedBaseUrl()}/api/v1/pairing/sessions/$pairingSessionId/complete",
-            method = "POST",
-            body = CompletePairingSessionRequest(pairingSecret = pairingSecret),
-            serializer = CompletePairingSessionResponse.serializer(),
-        )
-    }
-
     private suspend fun <T> executeJson(
         url: String,
         method: String,
@@ -154,7 +137,6 @@ class RelayHttpClient(
         return when (value) {
             is JoinPairingSessionRequest -> JoinPairingSessionRequest.serializer() as kotlinx.serialization.KSerializer<T>
             is LookupPairingSessionRequest -> LookupPairingSessionRequest.serializer() as kotlinx.serialization.KSerializer<T>
-            is CompletePairingSessionRequest -> CompletePairingSessionRequest.serializer() as kotlinx.serialization.KSerializer<T>
             else -> error("지원하지 않는 요청 본문 타입이에요: ${value::class.java.name}")
         }
     }
@@ -260,21 +242,6 @@ private data class LookupPairingSessionResponse(
 }
 
 @Serializable
-private data class CompletePairingSessionRequest(
-    @SerialName("pairing_secret")
-    val pairingSecret: String,
-)
-
-@Serializable
-data class CompletePairingSessionResponse(
-    @SerialName("pairing_session_id")
-    val pairingSessionId: String,
-    val state: String,
-    @SerialName("completed_at")
-    val completedAt: String,
-)
-
-@Serializable
 private data class RelayErrorEnvelope(
     val error: RelayErrorBody,
 )
@@ -284,4 +251,3 @@ private data class RelayErrorBody(
     val code: String,
     val message: String,
 )
-

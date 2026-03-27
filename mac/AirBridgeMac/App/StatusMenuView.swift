@@ -12,21 +12,35 @@ struct StatusMenuView: View {
             Label(appState.connectionState.summary, systemImage: appState.statusImageName)
                 .font(.subheadline)
 
-            if let peerDeviceID = appState.peerDeviceID {
-                Text("연결된 기기: \(peerDeviceID)")
+            if let pairedSession = appState.pairedSession {
+                Text("연결된 기기: \(pairedSession.peerDeviceName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("페어링 시각: \(pairedSession.pairedAt.formatted(date: .abbreviated, time: .standard))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text("지속 시간: \(elapsedDurationText(since: pairedSession.pairedAt, now: context.date))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button("페어링 삭제", role: .destructive) {
+                    Task {
+                        await pairingViewModel.clearPairing()
+                    }
+                }
+            } else {
+                Text("내 기기 이름: \(appState.deviceName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("Relay: \(appState.relayBaseURLText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            if let lastClipboardSyncAt = appState.lastClipboardSyncAt {
-                Text("클립보드: \(lastClipboardSyncAt.formatted(date: .omitted, time: .standard))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(appState.notificationAuthorizationGranted ? "알림: 허용됨" : "알림: 비허용")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if let latestError = appState.latestError {
                 Text(latestError)
@@ -37,22 +51,8 @@ struct StatusMenuView: View {
             Divider()
 
             SettingsLink {
-                Label("AirBridge 열기", systemImage: "gearshape")
+                Label(appState.isPaired ? "상세 보기" : "페어링 QR 열기", systemImage: appState.isPaired ? "gearshape" : "qrcode")
             }
-
-            Button("재연결") {
-                Task {
-                    await pairingViewModel.reconnectRelay()
-                }
-            }
-            .disabled(!appState.isPaired)
-
-            Button("페어링 해제") {
-                Task {
-                    await pairingViewModel.clearPairing()
-                }
-            }
-            .disabled(!appState.isPaired)
 
             Divider()
 
@@ -62,6 +62,16 @@ struct StatusMenuView: View {
             .keyboardShortcut("q")
         }
         .padding(14)
-        .frame(width: 280, alignment: .leading)
+        .frame(width: 300, alignment: .leading)
+    }
+
+    private func elapsedDurationText(since start: Date, now: Date) -> String {
+        let totalSeconds = max(Int(now.timeIntervalSince(start)), 0)
+        let days = totalSeconds / 86_400
+        let hours = (totalSeconds % 86_400) / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+
+        return String(format: "%d일 %02d시간 %02d분 %02d초", days, hours, minutes, seconds)
     }
 }

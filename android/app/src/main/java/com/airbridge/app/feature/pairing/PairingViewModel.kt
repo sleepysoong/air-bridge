@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.airbridge.app.app.AppContainer
-import com.airbridge.app.domain.PendingPairingSession
 import com.airbridge.app.domain.StoredRelayCredentials
 import com.airbridge.app.feature.common.ClipboardSyncStatus
 import com.airbridge.app.feature.service.BridgeRuntimeSnapshot
@@ -25,7 +24,6 @@ class PairingViewModel(
             activeCredentials = container.pairingRepository.currentCredentials(),
         ),
     )
-    private var pendingPairingSession: PendingPairingSession? = null
 
     val uiState: StateFlow<PairingUiState> = mutableUiState.asStateFlow()
 
@@ -72,13 +70,14 @@ class PairingViewModel(
             runCatching {
                 val qrPayload = parser.parse(qrPayloadRaw)
                 container.pairingRepository.preparePairing(qrPayload, deviceName)
-            }.onSuccess { pending ->
-                pendingPairingSession = pending
+            }.onSuccess { credentials ->
+                container.bridgeRuntime.startForegroundService()
+                container.bridgeRuntime.reloadStoredPairing()
                 mutableUiState.update {
                     it.copy(
                         isBusy = false,
-                        pendingPairing = pending,
-                        infoMessage = "원하면 Mac 화면의 6자리 확인 코드를 참고한 뒤 완료할 수 있어요.",
+                        activeCredentials = credentials,
+                        infoMessage = "QR 스캔만으로 페어링을 완료했고 relay 브리지를 시작했어요.",
                     )
                 }
             }.onFailure { error ->
@@ -95,35 +94,6 @@ class PairingViewModel(
     fun applyScannedQr(rawValue: String) {
         updateQrPayload(rawValue)
         preparePairing()
-    }
-
-    fun completePairing() {
-        val pending = pendingPairingSession ?: return
-        viewModelScope.launch {
-            mutableUiState.update { it.copy(isBusy = true, errorMessage = null) }
-            runCatching {
-                container.pairingRepository.completePairing(pending)
-            }.onSuccess { credentials ->
-                pendingPairingSession = null
-                container.bridgeRuntime.startForegroundService()
-                container.bridgeRuntime.reloadStoredPairing()
-                mutableUiState.update {
-                    it.copy(
-                        isBusy = false,
-                        pendingPairing = null,
-                        activeCredentials = credentials,
-                        infoMessage = "페어링이 완료되었고 relay 브리지를 시작했어요.",
-                    )
-                }
-            }.onFailure { error ->
-                mutableUiState.update {
-                    it.copy(
-                        isBusy = false,
-                        errorMessage = error.message ?: "페어링 완료에 실패했어요.",
-                    )
-                }
-            }
-        }
     }
 
     fun sendClipboardNow() {
@@ -162,7 +132,6 @@ data class PairingUiState(
     val deviceName: String = "",
     val qrPayload: String = "",
     val isBusy: Boolean = false,
-    val pendingPairing: PendingPairingSession? = null,
     val activeCredentials: StoredRelayCredentials? = null,
     val notificationAccessGranted: Boolean = false,
     val clipboardStatus: ClipboardSyncStatus = ClipboardSyncStatus(),

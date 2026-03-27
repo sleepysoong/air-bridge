@@ -6,7 +6,7 @@
 
 Android 앱은 이미 주요 기능이 구현되어 있어요:
 - ✅ Jetpack Compose UI
-- ✅ QR 기반 페어링 (initiator QR 스캔 + SAS 확인)
+- ✅ QR 기반 즉시 페어링
 - ✅ X25519/HKDF-SHA256/AES-256-GCM 종단간 암호화
 - ✅ 안전한 키 저장소 (Android Keystore 기반 암호화)
 - ✅ Relay HTTP/WebSocket 클라이언트

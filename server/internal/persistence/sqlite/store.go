@@ -255,46 +255,18 @@ func (s *Store) JoinPairingSession(ctx context.Context, session domain.PairingSe
 			joiner_platform = ?,
 			joiner_public_key = ?,
 			state = ?,
-			updated_at_ms = ?
+			updated_at_ms = ?,
+			completed_at_ms = ?
 		WHERE id = ? AND state = ?`,
 		joinerDevice.ID,
 		session.JoinerName,
 		string(session.JoinerPlatform),
 		session.JoinerPublicKey,
-		string(domain.PairingStateReady),
+		string(domain.PairingStateCompleted),
+		toUnixMillis(joinedAt),
 		toUnixMillis(joinedAt),
 		session.ID,
 		string(domain.PairingStatePending),
-	)
-	if err != nil {
-		return err
-	}
-
-	if err := ensureRowsAffected(result); err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-func (s *Store) CompletePairingSession(ctx context.Context, session domain.PairingSession, completedAt time.Time) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	defer tx.Rollback()
-
-	result, err := tx.ExecContext(
-		ctx,
-		`UPDATE pairing_sessions
-		SET state = ?, updated_at_ms = ?, completed_at_ms = ?
-		WHERE id = ? AND state = ?`,
-		string(domain.PairingStateCompleted),
-		toUnixMillis(completedAt),
-		toUnixMillis(completedAt),
-		session.ID,
-		string(domain.PairingStateReady),
 	)
 	if err != nil {
 		return err
@@ -309,8 +281,8 @@ func (s *Store) CompletePairingSession(ctx context.Context, session domain.Pairi
 		`UPDATE devices
 		SET pairing_confirmed_at_ms = ?, last_seen_at_ms = ?
 		WHERE id IN (?, ?)`,
-		toUnixMillis(completedAt),
-		toUnixMillis(completedAt),
+		toUnixMillis(joinedAt),
+		toUnixMillis(joinedAt),
 		session.InitiatorDeviceID,
 		session.JoinerDeviceID,
 	)

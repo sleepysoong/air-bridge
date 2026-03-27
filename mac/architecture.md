@@ -68,8 +68,7 @@ mac/
 
 - Mac에서 pairing session을 생성해야 해요.
 - QR에 필요한 세션 정보와 공개키를 표시해야 해요.
-- Android가 참여한 뒤 필요하면 6자리 확인 코드를 참고하고 완료할 수 있어야 해요.
-- SAS 계산 로직은 현재 macOS 쪽에 들어 있지만, Android와 최종 합의 전까지는 잠정 규격으로 취급해야 해요.
+- Android가 QR을 스캔해 참여하면 페어링을 즉시 활성화해야 해요.
 
 ### Clipboard 계층
 
@@ -129,20 +128,7 @@ Content-Type: application/json
 
 이 응답으로 Android가 들어왔는지, 상대 공개키가 도착했는지 확인해야 해요.
 
-### 3. 페어링 완료
-
-```http
-POST /api/v1/pairing/sessions/{sessionID}/complete
-Content-Type: application/json
-
-{
-  "pairing_secret": "prs_xxx"
-}
-```
-
-Mac은 QR 기반 페어링을 완료하고, 필요하면 6자리 확인 코드를 추가로 참고할 수 있어야 해요.
-
-### 4. WebSocket 연결
+### 3. WebSocket 연결
 
 ```text
 GET /api/v1/ws?device_id=dev_xxx&relay_token=rt_xxx

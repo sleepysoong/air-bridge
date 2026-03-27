@@ -91,21 +91,14 @@ server/
 
 1. Android 앱이 QR에서 `sessionID`, `pairingSecret`, relay URL, Mac public key를 읽어야 해요.
 2. Android 앱이 `POST /api/v1/pairing/sessions/{sessionID}/join`을 호출해야 해요.
-3. 서버는 joiner device와 relay token을 만들고 session 상태를 `ready`로 바꿔야 해요.
+3. 서버는 joiner device와 relay token을 만들고 session 상태를 `completed`로 바꿔야 해요.
 4. macOS 앱은 `POST /api/v1/pairing/sessions/{sessionID}/lookup`으로 상태를 확인해야 해요.
-5. 이 시점의 relay token은 발급되더라도 WebSocket 인증에는 아직 사용할 수 없어요.
+5. 이 시점부터 두 기기는 relay token으로 WebSocket에 연결할 수 있어야 해요.
 
-### 3. 양쪽이 SAS를 확인한 뒤
-
-1. 사용자가 SAS가 같다고 확인해야 해요.
-2. initiator가 `POST /api/v1/pairing/sessions/{sessionID}/complete`를 호출해야 해요.
-3. 서버는 두 기기의 pairing confirmation 상태를 저장해야 해요.
-4. 이후 두 기기만 relay token으로 WebSocket에 연결할 수 있어야 해요.
-
-### 4. 실시간 envelope 전달
+### 3. 실시간 envelope 전달
 
 1. 클라이언트는 `GET /api/v1/ws?device_id=...&relay_token=...`로 연결해야 해요.
-2. 서버는 자격 증명과 pairing confirmation 상태를 함께 검증하고 `connected` 메시지를 보내야 해요.
+2. 서버는 자격 증명과 페어링 완료 상태를 함께 검증하고 `connected` 메시지를 보내야 해요.
 3. 송신 측 클라이언트는 `send_envelope` 메시지로 암호문을 보내야 해요.
 4. 서버는 envelope를 SQLite에 저장한 뒤, 수신 측이 연결돼 있으면 즉시 push해야 해요.
 5. 수신 측 클라이언트는 처리 완료 뒤 `ack_envelope`를 보내야 해요.
@@ -164,8 +157,7 @@ initiator device와 pairing session을 만들어요.
 ```
 
 - `pending`: 아직 joiner가 없어요.
-- `ready`: joiner가 들어왔어요.
-- `completed`: 사용자가 SAS를 확인하고 완료했어요.
+- `completed`: joiner가 들어오면서 페어링이 즉시 활성화됐어요.
 
 ### `POST /api/v1/pairing/sessions/{sessionID}/join`
 
@@ -195,17 +187,6 @@ joiner device를 추가해요.
 }
 ```
 
-### `POST /api/v1/pairing/sessions/{sessionID}/complete`
-
-사용자가 SAS를 확인한 뒤 완료 처리해요.
-
-요청 예시는 아래와 같아요.
-
-```json
-{
-  "pairing_secret": "prs_xxx"
-}
-```
 
 ## 입력 크기 제한
 

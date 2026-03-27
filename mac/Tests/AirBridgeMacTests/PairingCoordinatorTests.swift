@@ -26,10 +26,9 @@ final class PairingCoordinatorTests: XCTestCase {
         XCTAssertEqual(draft.localPrivateKeyData.count, RelayLimits.x25519PublicKeyBytes)
     }
 
-    func testLookupProducesSixDigitVerificationCode() async throws {
+    func testLookupReturnsCompletedSnapshotAfterJoin() async throws {
         let fakeClient = FakeRelayPairingClient()
         let localPrivateKey = Curve25519.KeyAgreement.PrivateKey()
-        let peerPrivateKey = Curve25519.KeyAgreement.PrivateKey()
         let coordinator = PairingCoordinator { _ in fakeClient }
         let draft = PairingDraft(
             relayBaseURL: URL(string: "http://127.0.0.1:8080")!,
@@ -44,7 +43,7 @@ final class PairingCoordinatorTests: XCTestCase {
         )
         fakeClient.lookupResponse = PairingSessionSnapshot(
             pairingSessionID: "ps_1",
-            state: .ready,
+            state: .completed,
             initiatorDeviceID: "dev_1",
             initiatorName: "mac",
             initiatorPlatform: .macOS,
@@ -52,23 +51,22 @@ final class PairingCoordinatorTests: XCTestCase {
             joinerDeviceID: "dev_2",
             joinerName: "android",
             joinerPlatform: .android,
-            joinerPublicKey: peerPrivateKey.publicKey.rawRepresentation,
+            joinerPublicKey: Curve25519.KeyAgreement.PrivateKey().publicKey.rawRepresentation,
             expiresAt: Date(timeIntervalSince1970: 0),
             updatedAt: Date(timeIntervalSince1970: 0),
-            completedAt: nil
+            completedAt: Date(timeIntervalSince1970: 1)
         )
 
         let result = try await coordinator.lookupPairing(for: draft)
 
-        XCTAssertEqual(result.shortAuthenticationString?.count, 6)
+        XCTAssertEqual(result.state, .completed)
     }
 
-    func testCompleteUsesExistingCompletedSnapshotWithoutCallingCompleteEndpoint() async throws {
-        let fakeClient = FakeRelayPairingClient()
+    func testCompleteBuildsPairedSessionFromCompletedSnapshot() throws {
         let localPrivateKey = Curve25519.KeyAgreement.PrivateKey()
         let peerPrivateKey = Curve25519.KeyAgreement.PrivateKey()
         let completedAt = Date(timeIntervalSince1970: 42)
-        let coordinator = PairingCoordinator { _ in fakeClient }
+        let coordinator = PairingCoordinator { _ in FakeRelayPairingClient() }
         let draft = PairingDraft(
             relayBaseURL: URL(string: "http://127.0.0.1:8080")!,
             deviceName: "AirBridge Mac",
@@ -96,12 +94,12 @@ final class PairingCoordinatorTests: XCTestCase {
             completedAt: completedAt
         )
 
-        let pairedSession = try await coordinator.completePairing(draft: draft, snapshot: snapshot)
+        let pairedSession = try coordinator.completePairing(draft: draft, snapshot: snapshot)
 
         XCTAssertEqual(pairedSession.peerDeviceID, "dev_2")
+        XCTAssertEqual(pairedSession.peerDeviceName, "android")
         XCTAssertEqual(pairedSession.pairingSessionID, "ps_1")
         XCTAssertEqual(pairedSession.pairedAt, completedAt)
-        XCTAssertEqual(fakeClient.completeCallCount, 0)
     }
 }
 
@@ -128,13 +126,6 @@ private final class FakeRelayPairingClient: RelayPairingClient {
         updatedAt: Date(timeIntervalSince1970: 0),
         completedAt: nil
     )
-    var completeResponse = CompletePairingSessionResponse(
-        pairingSessionID: "ps_default",
-        state: .completed,
-        completedAt: Date(timeIntervalSince1970: 100)
-    )
-    var completeCallCount = 0
-
     func createPairingSessionResponse(
         deviceName: String,
         platform: AirBridgePlatform,
@@ -148,13 +139,5 @@ private final class FakeRelayPairingClient: RelayPairingClient {
         pairingSecret: String
     ) async throws -> PairingSessionSnapshot {
         lookupResponse
-    }
-
-    func completePairingSession(
-        sessionID: String,
-        pairingSecret: String
-    ) async throws -> CompletePairingSessionResponse {
-        completeCallCount += 1
-        return completeResponse
     }
 }

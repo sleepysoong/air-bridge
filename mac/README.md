@@ -20,7 +20,7 @@ macOS 앱은 아래 책임을 맡아야 해요.
 - 저장소: Keychain에 pairing session과 relay 관련 비밀값을 저장해요.
 - 네트워크: relay HTTP + WebSocket 클라이언트가 실제 서버 계약에 맞게 구현돼 있어요.
 - 기능 범위: pairing, clipboard 송수신, Android 알림 미러링, reconnect, local validation이 포함돼요.
-- 남은 범위: Android와 payload/SAS 규격 최종 합의, 실제 E2E 검증, 배포 서명 마감이에요.
+- 남은 범위: Android와 payload 계약 최종 합의, 실제 E2E 검증, 배포 서명 마감이에요.
 
 ## 디렉터리 구조
 
@@ -67,4 +67,4 @@ swift run --package-path mac
 - 클립보드 반사 루프를 막기 위해 origin tag와 synthetic write guard가 필요해요.
 - v1에서는 히스토리 검색 UI보다 안정적인 송수신이 우선이에요.
 - relay 코드 기준 pairing lookup 경로는 `POST /api/v1/pairing/sessions/{sessionID}/lookup`이에요.
-- SAS 6자리 계산 로직은 현재 macOS 쪽에서 임시로 구현돼 있지만, Android와 최종적으로 같게 맞추기 전까지는 잠정 규격이에요.
+- 페어링은 QR 스캔 뒤 즉시 완료되는 흐름을 유지해야 해요.

@@ -6,7 +6,6 @@ import com.airbridge.app.domain.EncryptedEnvelope
 import com.airbridge.app.domain.EnvelopeHeader
 import kotlinx.serialization.json.Json
 import java.security.SecureRandom
-import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
@@ -107,25 +106,6 @@ class EnvelopeCipher(
         return cipher.doFinal(ciphertext)
     }
 
-    fun calculateSasCode(
-        pairingSessionId: String,
-        initiatorDeviceId: String,
-        joinerDeviceId: String,
-        localPrivateKeyBase64: String,
-        peerPublicKeyBase64: String,
-    ): String {
-        val sharedSecret = sessionKeyStore.deriveSharedSecret(localPrivateKeyBase64, peerPublicKeyBase64)
-        val info = "air-bridge|sas|$initiatorDeviceId|$joinerDeviceId|v1".toByteArray(StandardCharsets.UTF_8)
-        val bytes = sessionKeyStore.hkdfSha256(
-            ikm = sharedSecret,
-            salt = pairingSessionId.toByteArray(StandardCharsets.UTF_8),
-            info = info,
-            size = 4,
-        )
-        val number = ByteBuffer.wrap(bytes).int.toUInt().toLong() % 1_000_000L
-        return "%06d".format(number)
-    }
-
     private fun deriveDirectionKey(
         sharedSecret: ByteArray,
         pairingSessionId: String,
@@ -141,4 +121,3 @@ class EnvelopeCipher(
         )
     }
 }
-

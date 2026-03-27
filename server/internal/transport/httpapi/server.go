@@ -66,7 +66,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions", s.handleCreatePairingSession)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/lookup", s.handleLookupPairingSession)
 	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/join", s.handleJoinPairingSession)
-	s.mux.HandleFunc("POST /api/v1/pairing/sessions/{sessionID}/complete", s.handleCompletePairingSession)
 	s.mux.HandleFunc("GET /api/v1/ws", s.handleWebSocket)
 }
 
@@ -400,43 +399,6 @@ func (s *Server) handleJoinPairingSession(w http.ResponseWriter, r *http.Request
 		InitiatorDeviceID:  result.InitiatorDeviceID,
 		InitiatorPublicKey: base64.RawStdEncoding.EncodeToString(result.InitiatorPublicKey),
 		ExpiresAt:          result.Session.ExpiresAt.Format(time.RFC3339),
-	})
-}
-
-type completePairingSessionRequest struct {
-	PairingSecret string `json:"pairing_secret"`
-}
-
-func (s *Server) handleCompletePairingSession(w http.ResponseWriter, r *http.Request) {
-	var request completePairingSessionRequest
-	if err := decodeJSON(w, r, &request, maxPairingRequestBodyBytes); err != nil {
-		s.writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		s.logger.Warn("페어링 완료 요청 본문이 올바르지 않아요", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "error", err)
-		return
-	}
-
-	session, err := s.pairingService.CompleteSession(r.Context(), r.PathValue("sessionID"), request.PairingSecret)
-	if err != nil {
-		s.writeServiceError(w, r, err)
-		return
-	}
-
-	s.logger.Info(
-		"페어링 완료 요청을 처리했어요",
-		"session_id",
-		session.ID,
-		"initiator_device_id",
-		session.InitiatorDeviceID,
-		"joiner_device_id",
-		session.JoinerDeviceID,
-		"remote_addr",
-		r.RemoteAddr,
-	)
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"pairing_session_id": session.ID,
-		"state":              session.State,
-		"completed_at":       session.CompletedAt.Format(time.RFC3339),
 	})
 }
 

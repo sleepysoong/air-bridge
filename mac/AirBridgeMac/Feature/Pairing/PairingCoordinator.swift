@@ -60,53 +60,25 @@ final class PairingCoordinator {
         )
     }
 
-    func lookupPairing(for draft: PairingDraft) async throws -> PairingLookupResult {
+    func lookupPairing(for draft: PairingDraft) async throws -> PairingSessionSnapshot {
         let client = clientFactory(draft.relayBaseURL)
-        let snapshot = try await client.lookupPairingSession(
+        return try await client.lookupPairingSession(
             sessionID: try RelayInputValidator.identifier(draft.pairingSessionID, field: "pairing_session_id"),
             pairingSecret: try RelayInputValidator.pairingSecret(draft.pairingSecret)
         )
-
-        let verificationCode: String?
-        if let peerPublicKeyData = snapshot.joinerPublicKey, let joinerDeviceID = snapshot.joinerDeviceID {
-            verificationCode = try makeShortAuthenticationString(
-                pairingSessionID: draft.pairingSessionID,
-                initiatorDeviceID: draft.localDeviceID,
-                joinerDeviceID: joinerDeviceID,
-                localPrivateKeyData: draft.localPrivateKeyData,
-                peerPublicKeyData: peerPublicKeyData
-            )
-        } else {
-            verificationCode = nil
-        }
-
-        return PairingLookupResult(
-            snapshot: snapshot,
-            shortAuthenticationString: verificationCode
-        )
     }
 
-    func completePairing(draft: PairingDraft, snapshot: PairingSessionSnapshot) async throws -> PairedDeviceSession {
+    func completePairing(draft: PairingDraft, snapshot: PairingSessionSnapshot) throws -> PairedDeviceSession {
         guard let peerDeviceID = snapshot.joinerDeviceID,
               let peerPublicKeyData = snapshot.joinerPublicKey else {
             throw PairingCoordinatorError.peerKeyMissing
         }
 
-        guard snapshot.state == .ready || snapshot.state == .completed else {
+        guard snapshot.state == .completed else {
             throw PairingCoordinatorError.sessionNotReady
         }
 
-        let completedAt: Date
-        if snapshot.state == .completed, let existingCompletedAt = snapshot.completedAt {
-            completedAt = existingCompletedAt
-        } else {
-            let client = clientFactory(draft.relayBaseURL)
-            let completion = try await client.completePairingSession(
-                sessionID: try RelayInputValidator.identifier(draft.pairingSessionID, field: "pairing_session_id"),
-                pairingSecret: try RelayInputValidator.pairingSecret(draft.pairingSecret)
-            )
-            completedAt = completion.completedAt
-        }
+        let completedAt = snapshot.completedAt ?? snapshot.updatedAt
 
         let sessionKeyData = try makeSessionKeyData(
             localPrivateKeyData: draft.localPrivateKeyData,
@@ -118,6 +90,7 @@ final class PairingCoordinator {
             pairingSessionID: draft.pairingSessionID,
             localDeviceID: draft.localDeviceID,
             peerDeviceID: peerDeviceID,
+            peerDeviceName: snapshot.joinerName ?? peerDeviceID,
             relayToken: draft.relayToken,
             sessionKeyData: sessionKeyData,
             localPrivateKeyData: draft.localPrivateKeyData,
@@ -143,34 +116,6 @@ final class PairingCoordinator {
         )
 
         return symmetricKey.dataRepresentation
-    }
-
-    private func makeShortAuthenticationString(
-        pairingSessionID: String,
-        initiatorDeviceID: String,
-        joinerDeviceID: String,
-        localPrivateKeyData: Data,
-        peerPublicKeyData: Data
-    ) throws -> String {
-        let sharedSecret = try deriveSharedSecret(
-            localPrivateKeyData: localPrivateKeyData,
-            peerPublicKeyData: peerPublicKeyData
-        )
-        let infoString = "air-bridge|sas|\(initiatorDeviceID)|\(joinerDeviceID)|v1"
-        let info = Data(infoString.utf8)
-        let salt = Data(pairingSessionID.utf8)
-        let verificationKey = sharedSecret.hkdfDerivedSymmetricKey(
-            using: SHA256.self,
-            salt: salt,
-            sharedInfo: info,
-            outputByteCount: 4
-        )
-        let bytes = verificationKey.dataRepresentation.prefix(4)
-        let value = bytes.reduce(UInt32.zero) { partialResult, byte in
-            (partialResult << 8) | UInt32(byte)
-        } % 1_000_000
-
-        return String(format: "%06u", value)
     }
 
     private func deriveSharedSecret(

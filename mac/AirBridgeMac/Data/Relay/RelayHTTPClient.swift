@@ -13,11 +13,6 @@ protocol RelayPairingClient {
         sessionID: String,
         pairingSecret: String
     ) async throws -> PairingSessionSnapshot
-
-    func completePairingSession(
-        sessionID: String,
-        pairingSecret: String
-    ) async throws -> CompletePairingSessionResponse
 }
 
 enum RelayHTTPClientError: LocalizedError {
@@ -100,22 +95,6 @@ final class RelayHTTPClient: RelayPairingClient {
             updatedAt: response.updatedAt,
             completedAt: response.completedAt
         )
-    }
-
-    func completePairingSession(
-        sessionID: String,
-        pairingSecret: String
-    ) async throws -> CompletePairingSessionResponse {
-        let validatedSessionID = try RelayInputValidator.identifier(sessionID, field: "pairing_session_id")
-        let validatedPairingSecret = try RelayInputValidator.pairingSecret(pairingSecret)
-
-        let response: CompletePairingSessionResponse = try await send(
-            path: "/api/v1/pairing/sessions/\(validatedSessionID)/complete",
-            method: "POST",
-            body: CompletePairingSessionRequest(pairingSecret: validatedPairingSecret)
-        )
-
-        return response
     }
 
     private func send<Body: Encodable, Response: Decodable>(
@@ -244,26 +223,6 @@ private struct LookupPairingSessionResponse: Decodable {
         case expiresAt = "expires_at"
         case updatedAt = "updated_at"
         case completedAt = "completed_at"
-    }
-}
-
-struct CompletePairingSessionResponse: Decodable {
-    let pairingSessionID: String
-    let state: PairingSessionState
-    let completedAt: Date
-
-    enum CodingKeys: String, CodingKey {
-        case pairingSessionID = "pairing_session_id"
-        case state
-        case completedAt = "completed_at"
-    }
-}
-
-private struct CompletePairingSessionRequest: Encodable {
-    let pairingSecret: String
-
-    enum CodingKeys: String, CodingKey {
-        case pairingSecret = "pairing_secret"
     }
 }
 

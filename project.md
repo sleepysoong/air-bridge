@@ -59,7 +59,7 @@ Android 제약도 이미 확정되어 있어요.
 
 ## 보안 모델
 
-- 페어링은 QR 기반으로 시작하고, 양쪽 기기에서 6자리 SAS를 확인해야 해요.
+- 페어링은 QR 기반으로 시작하고, Android가 참여하면 즉시 완료되어야 해요.
 - 키 합의는 `X25519`를 사용해야 해요.
 - 각 기기의 공개키는 `32 byte X25519 public key`여야 해요.
 - 키 파생은 `HKDF-SHA256`을 사용해야 해요.
@@ -83,7 +83,6 @@ Android 제약도 이미 확정되어 있어요.
 - `POST /api/v1/pairing/sessions`
 - `POST /api/v1/pairing/sessions/{sessionID}/lookup`
 - `POST /api/v1/pairing/sessions/{sessionID}/join`
-- `POST /api/v1/pairing/sessions/{sessionID}/complete`
 - `GET /api/v1/ws`
 
 현재 서버는 아래 입력 제한도 함께 적용해야 해요.

@@ -15,7 +15,7 @@ Android 앱은 주요 기능이 이미 구현되어 있어요:
 - Mac→Android 클립보드 자동 적용
 - 클립보드 루프 방지
 - 서버 입력 제한 클라이언트 검증
-- QR 파싱, 암호화, SAS, Relay 매핑, 클립보드 동기화 단위 테스트
+- QR 파싱, 암호화, Relay 매핑, 클립보드 동기화 단위 테스트
 
 ## Android 앱이 맡는 책임
 
@@ -108,7 +108,7 @@ android/
 
 - `PairingScreen`: Compose UI, 페어링 상태 표시
 - `PairingViewModel`: 페어링 플로우 상태 관리
-- `PairingRepository`: Relay HTTP API 호출 (join, lookup, complete)
+- `PairingRepository`: Relay HTTP API 호출 (join, lookup)
 - `PairingQrParser`: QR JSON/URI 파싱
 
 ### `feature/clipboard`
@@ -134,7 +134,7 @@ android/
 ### `data/crypto`
 
 - `SessionKeyStore`: X25519 키 생성, ECDH 공유 비밀, HKDF-SHA256
-- `EnvelopeCipher`: AES-256-GCM 암복호화, SAS 6자리 생성, 서버 입력 제한 검증
+- `EnvelopeCipher`: AES-256-GCM 암복호화, 서버 입력 제한 검증
 
 ### `data/relay`
 
@@ -165,9 +165,8 @@ android/
 2. `PairingRepository.joinPairing()` → Relay `POST /join` 호출
    - device_name 128자 검증
    - pairing_secret 128자 검증
-3. X25519 키 생성, SAS 계산
-4. 사용자는 필요하면 6자리 확인 코드를 참고한 뒤 `PairingRepository.completePairing()` → Relay `POST /complete`
-5. Credentials 저장 (DeviceIdentityStore, RelayCredentialStore)
+3. X25519 키 생성, join 직후 credentials 저장 (DeviceIdentityStore, RelayCredentialStore)
+4. relay 브리지를 바로 시작해요
 
 ### 클립보드 플로우 (Android → Mac)
 
@@ -225,20 +224,7 @@ Content-Type: application/json
 - `initiator_device_id`
 - `initiator_public_key`
 
-### 2. 확인 코드 참고 후 완료 (현재 구현됨)
-
-`RelayHttpClient.completePairingSession()` 호출:
-
-```http
-POST /api/v1/pairing/sessions/{sessionID}/complete
-Content-Type: application/json
-
-{
-  "pairing_secret": "prs_xxx"
-}
-```
-
-### 3. WebSocket 연결 (현재 구현됨)
+### 2. WebSocket 연결 (현재 구현됨)
 
 `RelayWebSocketClient.connect()`:
 
@@ -292,7 +278,6 @@ GET /api/v1/ws?device_id=dev_xxx&relay_token=rt_xxx
 - **키 합의**: X25519 ECDH
 - **키 파생**: HKDF-SHA256
 - **Payload 암호화**: AES-256-GCM (12-byte nonce, 128-bit tag)
-- **SAS**: HKDF로 4바이트 파생 → 6자리 숫자
 - **전송 보안**: HTTPS + WebSocket (서버 설정에 따라 WSS)
 
 ## 알려진 제한사항 및 다음 작업

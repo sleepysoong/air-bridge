@@ -79,21 +79,17 @@ func TestPairingEndpointsLifecycle(t *testing.T) {
 		t.Fatalf("페어링 참여 응답에 필요한 값이 빠져 있어요: %#v", joined)
 	}
 
-	readySession := harness.getPairingSession(t, created.PairingSessionID, created.PairingSecret)
-	if readySession.State != "ready" {
-		t.Fatalf("참여 뒤 상태는 %q 이어야 해요. 실제 값: %q", "ready", readySession.State)
+	pairedSession := harness.getPairingSession(t, created.PairingSessionID, created.PairingSecret)
+	if pairedSession.State != "completed" {
+		t.Fatalf("참여 뒤 상태는 %q 이어야 해요. 실제 값: %q", "completed", pairedSession.State)
 	}
 
-	if readySession.JoinerName != "pixel-android" {
-		t.Fatalf("참여 기기 이름이 예상과 달라요: %q", readySession.JoinerName)
+	if pairedSession.JoinerName != "pixel-android" {
+		t.Fatalf("참여 기기 이름이 예상과 달라요: %q", pairedSession.JoinerName)
 	}
 
-	completed := harness.completePairingSession(t, created.PairingSessionID, completePairingSessionRequest{
-		PairingSecret: created.PairingSecret,
-	})
-
-	if completed["state"] != "completed" {
-		t.Fatalf("완료 응답 상태가 예상과 달라요: %#v", completed)
+	if pairedSession.CompletedAt == "" {
+		t.Fatal("참여가 완료되면 completed_at 값이 바로 있어야 해요")
 	}
 
 	finalSession := harness.getPairingSession(t, created.PairingSessionID, created.PairingSecret)
@@ -102,7 +98,7 @@ func TestPairingEndpointsLifecycle(t *testing.T) {
 	}
 }
 
-func TestWebSocketAuthenticationRequiresCompletedPairing(t *testing.T) {
+func TestWebSocketAuthenticationRequiresJoinedPairing(t *testing.T) {
 	harness := newIntegrationHarness(t)
 
 	created := harness.createPairingSession(t, createPairingSessionRequest{
@@ -116,12 +112,6 @@ func TestWebSocketAuthenticationRequiresCompletedPairing(t *testing.T) {
 		DeviceName:    "pixel-android",
 		Platform:      "android",
 		PublicKey:     encodeBase64(strings.Repeat("j", 32)),
-	})
-
-	harness.expectWebSocketUnauthorized(t, created.InitiatorDeviceID, created.InitiatorRelayToken)
-
-	harness.completePairingSession(t, created.PairingSessionID, completePairingSessionRequest{
-		PairingSecret: created.PairingSecret,
 	})
 
 	connection := harness.openWebSocket(t, created.InitiatorDeviceID, created.InitiatorRelayToken)
@@ -147,10 +137,6 @@ func TestWebSocketSendReceiveAndAckFlow(t *testing.T) {
 		DeviceName:    "pixel-android",
 		Platform:      "android",
 		PublicKey:     encodeBase64(strings.Repeat("j", 32)),
-	})
-
-	harness.completePairingSession(t, created.PairingSessionID, completePairingSessionRequest{
-		PairingSecret: created.PairingSecret,
 	})
 
 	recipientConnection := harness.openWebSocket(t, joined.JoinerDeviceID, joined.JoinerRelayToken)
@@ -220,10 +206,6 @@ func TestPendingEnvelopeDeliveryExcludesExpiredEnvelopes(t *testing.T) {
 		DeviceName:    "pixel-android",
 		Platform:      "android",
 		PublicKey:     encodeBase64(strings.Repeat("j", 32)),
-	})
-
-	harness.completePairingSession(t, created.PairingSessionID, completePairingSessionRequest{
-		PairingSecret: created.PairingSecret,
 	})
 
 	now := time.Now().UTC()
@@ -400,15 +382,6 @@ func (h *integrationHarness) joinPairingSession(t *testing.T, sessionID string, 
 
 	var response joinPairingSessionResponse
 	h.doJSONRequest(t, http.MethodPost, "/api/v1/pairing/sessions/"+sessionID+"/join", request, http.StatusOK, &response)
-
-	return response
-}
-
-func (h *integrationHarness) completePairingSession(t *testing.T, sessionID string, request completePairingSessionRequest) map[string]string {
-	t.Helper()
-
-	var response map[string]string
-	h.doJSONRequest(t, http.MethodPost, "/api/v1/pairing/sessions/"+sessionID+"/complete", request, http.StatusOK, &response)
 
 	return response
 }

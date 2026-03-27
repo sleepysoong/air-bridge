@@ -43,21 +43,27 @@ func TestRelayServiceAuthenticateDevice(t *testing.T) {
 	}
 }
 
-func TestRelayServiceAuthenticateDeviceRejectsUnconfirmedPairing(t *testing.T) {
+func TestRelayServiceAuthenticateDeviceRejectsPendingPairing(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	store := openTestStore(t)
 
-	baseTime := time.UnixMilli(1_700_000_550_000).UTC()
 	pairingService := NewPairingService(newDiscardLogger(), store, 10*time.Minute)
-	createResult, _ := createReadyPair(t, ctx, pairingService, baseTime)
+	createResult, err := pairingService.CreateSession(ctx, CreatePairingSessionInput{
+		InitiatorDeviceName: "sleepysoong-macbook-air",
+		InitiatorPlatform:   domain.PlatformMacOS,
+		InitiatorPublicKey:  x25519PublicKey(0x21),
+	})
+	if err != nil {
+		t.Fatalf("세션을 생성하지 못했어요: %v", err)
+	}
 
 	relayService := NewRelayService(newDiscardLogger(), store, 24*time.Hour)
 
-	_, err := relayService.AuthenticateDevice(ctx, createResult.InitiatorDevice.ID, createResult.InitiatorRelayToken)
+	_, err = relayService.AuthenticateDevice(ctx, createResult.InitiatorDevice.ID, createResult.InitiatorRelayToken)
 	if !errors.Is(err, ErrUnauthorized) {
-		t.Fatalf("미확정 페어링에는 권한 오류가 반환되어야 해요. 실제 값: %v", err)
+		t.Fatalf("pending 페어링에는 권한 오류가 반환되어야 해요. 실제 값: %v", err)
 	}
 }
 

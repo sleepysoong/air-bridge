@@ -7,8 +7,21 @@ enum AirBridgePlatform: String, Codable, CaseIterable {
 
 enum PairingSessionState: String, Codable {
     case pending
-    case ready
     case completed
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+
+        switch rawValue {
+        case "pending":
+            self = .pending
+        case "ready", "completed":
+            self = .completed
+        default:
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "지원하지 않는 페어링 상태예요: \(rawValue)")
+        }
+    }
 }
 
 enum RelayChannel: String, Codable {
@@ -60,16 +73,12 @@ struct PairingSessionSnapshot: Codable, Equatable {
     let completedAt: Date?
 }
 
-struct PairingLookupResult: Equatable {
-    let snapshot: PairingSessionSnapshot
-    let shortAuthenticationString: String?
-}
-
 struct PairedDeviceSession: Codable, Equatable {
     let relayBaseURL: URL
     let pairingSessionID: String
     let localDeviceID: String
     let peerDeviceID: String
+    let peerDeviceName: String
     let relayToken: String
     let sessionKeyData: Data
     let localPrivateKeyData: Data
@@ -82,6 +91,7 @@ struct PairedDeviceSession: Codable, Equatable {
         case pairingSessionID
         case localDeviceID
         case peerDeviceID
+        case peerDeviceName
         case relayToken
         case sessionKeyData
         case localPrivateKeyData
@@ -95,6 +105,7 @@ struct PairedDeviceSession: Codable, Equatable {
         pairingSessionID: String,
         localDeviceID: String,
         peerDeviceID: String,
+        peerDeviceName: String,
         relayToken: String,
         sessionKeyData: Data,
         localPrivateKeyData: Data,
@@ -106,6 +117,7 @@ struct PairedDeviceSession: Codable, Equatable {
         self.pairingSessionID = pairingSessionID
         self.localDeviceID = localDeviceID
         self.peerDeviceID = peerDeviceID
+        self.peerDeviceName = peerDeviceName
         self.relayToken = relayToken
         self.sessionKeyData = sessionKeyData
         self.localPrivateKeyData = localPrivateKeyData
@@ -120,6 +132,7 @@ struct PairedDeviceSession: Codable, Equatable {
         pairingSessionID = try container.decodeIfPresent(String.self, forKey: .pairingSessionID) ?? ""
         localDeviceID = try container.decode(String.self, forKey: .localDeviceID)
         peerDeviceID = try container.decode(String.self, forKey: .peerDeviceID)
+        peerDeviceName = try container.decodeIfPresent(String.self, forKey: .peerDeviceName) ?? peerDeviceID
         relayToken = try container.decode(String.self, forKey: .relayToken)
         sessionKeyData = try container.decode(Data.self, forKey: .sessionKeyData)
         localPrivateKeyData = try container.decode(Data.self, forKey: .localPrivateKeyData)

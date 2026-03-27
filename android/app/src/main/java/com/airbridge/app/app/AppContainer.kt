@@ -87,7 +87,6 @@ class AppContainer(
         deviceIdentityStore = deviceIdentityStore,
         relayCredentialStore = relayCredentialStore,
         sessionKeyStore = sessionKeyStore,
-        envelopeCipher = envelopeCipher,
     )
 
     init {

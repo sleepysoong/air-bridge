@@ -52,7 +52,6 @@ class MainActivity : ComponentActivity() {
                     onDeviceNameChanged = viewModel::updateDeviceName,
                     onQrPayloadChanged = viewModel::updateQrPayload,
                     onPreparePairing = viewModel::preparePairing,
-                    onCompletePairing = viewModel::completePairing,
                     onManualClipboardSend = viewModel::sendClipboardNow,
                     onOpenNotificationAccess = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

@@ -6,7 +6,6 @@ final class PairingViewModel: ObservableObject {
     @Published private(set) var activeDraft: PairingDraft?
     @Published private(set) var relayAddresses: [String] = []
     @Published private(set) var latestSnapshot: PairingSessionSnapshot?
-    @Published private(set) var shortAuthenticationString: String?
     @Published private(set) var isBusy = false
     @Published private(set) var pairingMessage: String?
 
@@ -76,7 +75,6 @@ final class PairingViewModel: ObservableObject {
             )
             activeDraft = draft
             latestSnapshot = nil
-            shortAuthenticationString = nil
             pairingMessage = "QR이 준비됐어요. Android에서 스캔해 주세요."
             DesktopFileLogger.log("Pairing draft created successfully")
             beginPolling()
@@ -96,55 +94,20 @@ final class PairingViewModel: ObservableObject {
         DesktopFileLogger.log("PairingViewModel refreshPairing requested")
 
         do {
-            let result = try await pairingCoordinator.lookupPairing(for: activeDraft)
-            latestSnapshot = result.snapshot
-            shortAuthenticationString = result.shortAuthenticationString
+            let snapshot = try await pairingCoordinator.lookupPairing(for: activeDraft)
+            latestSnapshot = snapshot
 
-            switch result.snapshot.state {
+            switch snapshot.state {
             case .pending:
                 pairingMessage = "Android 기기가 참여할 때까지 기다리고 있어요."
-            case .ready:
-                pairingMessage = result.shortAuthenticationString == nil
-                    ? "Android가 참여했어요. 인증 코드를 기다리고 있어요."
-                    : "QR로 연결 정보는 이미 전달됐어요. 필요하면 6자리 확인 코드를 비교한 뒤 완료하세요."
             case .completed:
-                pairingMessage = "Relay에서 페어링이 완료됐어요."
-                stopPolling()
+                try await finalizePairing(draft: activeDraft, snapshot: snapshot)
             }
-            DesktopFileLogger.log("Pairing refresh completed with state \(String(describing: result.snapshot.state))")
+            DesktopFileLogger.log("Pairing refresh completed with state \(String(describing: snapshot.state))")
         } catch {
             pairingMessage = error.localizedDescription
             appState.setLatestError(error)
         }
-    }
-
-    func completePairing() async {
-        guard let activeDraft, let latestSnapshot else {
-            return
-        }
-
-        DesktopFileLogger.log("PairingViewModel completePairing requested")
-
-        isBusy = true
-
-        do {
-            let pairedSession = try await pairingCoordinator.completePairing(
-                draft: activeDraft,
-                snapshot: latestSnapshot
-            )
-            try await appContainer?.activatePairedSession(pairedSession)
-            pairingMessage = "페어링이 완료됐어요."
-            DesktopFileLogger.log("Pairing completed successfully")
-            stopPolling()
-            self.activeDraft = nil
-            self.latestSnapshot = nil
-            self.shortAuthenticationString = nil
-        } catch {
-            pairingMessage = error.localizedDescription
-            appState.setLatestError(error)
-        }
-
-        isBusy = false
     }
 
     func cancelDraft() {
@@ -152,7 +115,6 @@ final class PairingViewModel: ObservableObject {
         activeDraft = nil
         relayAddresses = []
         latestSnapshot = nil
-        shortAuthenticationString = nil
         pairingMessage = nil
     }
 
@@ -197,5 +159,19 @@ final class PairingViewModel: ObservableObject {
     private func stopPolling() {
         pollingTask?.cancel()
         pollingTask = nil
+    }
+
+    private func finalizePairing(draft: PairingDraft, snapshot: PairingSessionSnapshot) async throws {
+        let pairedSession = try pairingCoordinator.completePairing(
+            draft: draft,
+            snapshot: snapshot
+        )
+        try await appContainer?.activatePairedSession(pairedSession)
+        pairingMessage = "페어링이 완료됐어요."
+        DesktopFileLogger.log("Pairing completed successfully")
+        stopPolling()
+        activeDraft = nil
+        relayAddresses = []
+        latestSnapshot = nil
     }
 }

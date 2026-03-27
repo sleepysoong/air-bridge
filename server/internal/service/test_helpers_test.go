@@ -79,14 +79,7 @@ func createCompletedPair(
 
 	createResult, joinResult := createReadyPair(t, ctx, pairingService, createdAt)
 
-	pairingService.now = func() time.Time { return createdAt.Add(2 * time.Minute) }
-
-	completedSession, err := pairingService.CompleteSession(ctx, createResult.Session.ID, createResult.PairingSecret)
-	if err != nil {
-		t.Fatalf("페어링 세션을 완료하지 못했어요: %v", err)
-	}
-
-	return createResult, joinResult, completedSession
+	return createResult, joinResult, joinResult.Session
 }
 
 func x25519PublicKey(fill byte) []byte {

@@ -1,6 +1,5 @@
 package com.airbridge.app.feature.pairing
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,12 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -68,7 +64,6 @@ fun PairingScreen(
     onDeviceNameChanged: (String) -> Unit,
     onQrPayloadChanged: (String) -> Unit,
     onPreparePairing: () -> Unit,
-    onCompletePairing: () -> Unit,
     onManualClipboardSend: () -> Unit,
     onOpenNotificationAccess: () -> Unit,
     onStartBridge: () -> Unit,
@@ -101,7 +96,6 @@ fun PairingScreen(
                 onPreparePairing = onPreparePairing,
                 onScanQr = onScanQr,
             )
-            PendingPairingSection(backdrop = backdrop, uiState = uiState, onCompletePairing = onCompletePairing)
             RuntimeSection(
                 backdrop = backdrop,
                 uiState = uiState,
@@ -236,7 +230,7 @@ private fun PairingInputSection(
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle(
                 title = "페어링",
-                subtitle = "Mac에서 받은 QR 정보를 붙여 넣거나 바로 스캔해서 연결을 준비해요.",
+                subtitle = "Mac에서 받은 QR 정보를 붙여 넣거나 바로 스캔하면 곧바로 페어링이 완료돼요.",
             )
             SimpleTextField(
                 value = uiState.deviceName,
@@ -278,54 +272,6 @@ private fun PairingInputSection(
                     modifier = Modifier.weight(1f),
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun PendingPairingSection(
-    backdrop: Backdrop,
-    uiState: PairingUiState,
-    onCompletePairing: () -> Unit,
-) {
-    val pending = uiState.pendingPairing ?: return
-
-    GlassPanel(backdrop = backdrop, accent = AccentBlue) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionTitle(
-                title = "확인 코드",
-                subtitle = "QR로 이미 연결 정보는 전달됐어요. 원하면 Mac의 코드와 한 번 더 비교한 뒤 완료하세요.",
-            )
-            Text(
-                text = pending.sessionSnapshot.initiatorName.ifBlank { "Mac" },
-                color = SurfaceTextSecondary,
-                fontSize = 13.sp,
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(FieldShape)
-                    .background(Color.White.copy(alpha = 0.36f))
-                    .border(1.dp, GlassBorder, FieldShape)
-                    .padding(vertical = 18.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = pending.sasCode.chunked(3).joinToString(" "),
-                    color = SurfaceTextPrimary,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 2.sp,
-                )
-            }
-            GlassButton(
-                backdrop = backdrop,
-                text = "페어링 완료",
-                onClick = onCompletePairing,
-                enabled = !uiState.isBusy,
-                accent = AccentBlue,
-            )
         }
     }
 }

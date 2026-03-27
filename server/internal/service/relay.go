@@ -57,7 +57,7 @@ func (s *RelayService) AuthenticateDevice(ctx context.Context, deviceID string, 
 	}
 
 	if device.PeerDeviceID == "" || device.PairingConfirmedAt == nil {
-		return domain.Device{}, fmt.Errorf("%w: 기기 페어링 확인이 아직 끝나지 않았어요", ErrUnauthorized)
+		return domain.Device{}, fmt.Errorf("%w: 기기 페어링이 아직 활성화되지 않았어요", ErrUnauthorized)
 	}
 
 	if touchErr := s.store.TouchDevice(ctx, device.ID, s.now().UTC()); touchErr != nil {
@@ -128,7 +128,7 @@ func (s *RelayService) QueueEnvelope(ctx context.Context, input QueueEnvelopeInp
 	}
 
 	if sender.PairingConfirmedAt == nil || recipient.PairingConfirmedAt == nil {
-		return domain.Envelope{}, fmt.Errorf("%w: 페어링 확인이 아직 끝나지 않았어요", ErrUnauthorized)
+		return domain.Envelope{}, fmt.Errorf("%w: 페어링이 아직 활성화되지 않았어요", ErrUnauthorized)
 	}
 
 	now := s.now().UTC()

@@ -214,7 +214,9 @@ func (s *PairingService) JoinSession(ctx context.Context, input JoinPairingSessi
 	session.JoinerName = joinerDevice.Name
 	session.JoinerPlatform = input.JoinerPlatform
 	session.JoinerPublicKey = append([]byte(nil), input.JoinerPublicKey...)
+	session.State = domain.PairingStateCompleted
 	session.UpdatedAt = now
+	session.CompletedAt = &now
 
 	if err := s.store.JoinPairingSession(ctx, session, joinerDevice, now); err != nil {
 		if sqlite.IsNotFound(err) {
@@ -223,8 +225,6 @@ func (s *PairingService) JoinSession(ctx context.Context, input JoinPairingSessi
 
 		return JoinPairingSessionResult{}, err
 	}
-
-	session.State = domain.PairingStateReady
 
 	s.logger.Info(
 		"페어링 세션에 참여했어요",
@@ -245,47 +245,6 @@ func (s *PairingService) JoinSession(ctx context.Context, input JoinPairingSessi
 		JoinerRelayToken:   joinerRelayToken,
 		InitiatorPublicKey: append([]byte(nil), session.InitiatorPublicKey...),
 	}, nil
-}
-
-func (s *PairingService) CompleteSession(ctx context.Context, sessionID string, pairingSecret string) (domain.PairingSession, error) {
-	session, err := s.GetSession(ctx, sessionID, pairingSecret)
-	if err != nil {
-		return domain.PairingSession{}, err
-	}
-
-	switch session.State {
-	case domain.PairingStatePending:
-		return domain.PairingSession{}, fmt.Errorf("%w: 참여 기기가 아직 연결되지 않았어요", ErrConflict)
-	case domain.PairingStateCompleted:
-		return domain.PairingSession{}, fmt.Errorf("%w: 페어링 세션이 이미 완료되었어요", ErrConflict)
-	}
-
-	now := s.now().UTC()
-	if err := s.store.CompletePairingSession(ctx, session, now); err != nil {
-		if sqlite.IsNotFound(err) {
-			return domain.PairingSession{}, fmt.Errorf("%w: 페어링 세션을 찾을 수 없어요", ErrNotFound)
-		}
-
-		return domain.PairingSession{}, err
-	}
-
-	session.State = domain.PairingStateCompleted
-	session.UpdatedAt = now
-	session.CompletedAt = &now
-
-	s.logger.Info(
-		"페어링을 완료했어요",
-		"session_id",
-		session.ID,
-		"initiator_device_id",
-		session.InitiatorDeviceID,
-		"joiner_device_id",
-		session.JoinerDeviceID,
-		"completed_at",
-		now.Format(time.RFC3339),
-	)
-
-	return session, nil
 }
 
 func validatePublicKey(publicKey []byte, label string) error {
