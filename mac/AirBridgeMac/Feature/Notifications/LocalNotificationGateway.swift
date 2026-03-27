@@ -8,6 +8,7 @@ final class LocalNotificationGateway {
         self.center = center
     }
 
+    @MainActor
     func currentAuthorizationStatus() async -> UNAuthorizationStatus {
         await withCheckedContinuation { continuation in
             center.getNotificationSettings { settings in
@@ -16,10 +17,12 @@ final class LocalNotificationGateway {
         }
     }
 
+    @MainActor
     func requestAuthorization() async throws -> Bool {
         try await center.requestAuthorization(options: [.badge, .sound])
     }
 
+    @MainActor
     func apply(_ payload: NotificationPayload) async throws {
         let identifier = "airbridge.notification.\(payload.remoteIdentifier)"
 
