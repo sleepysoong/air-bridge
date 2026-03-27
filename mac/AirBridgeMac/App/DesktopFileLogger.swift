@@ -77,12 +77,13 @@ enum DesktopFileLogger {
         log("Runtime logging installed")
     }
 
-    static func log(_ message: String, level: Level = .info) {
+    static func log(_ message: String, level: Level = .info, sync: Bool = false) {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let line = "[\(formatter.string(from: Date()))] [\(level.rawValue)] \(message)\n"
         let fileURL = self.fileURL
-        queue.async {
+        
+        let writeBlock = {
             do {
                 let data = Data(line.utf8)
                 let handle = try FileHandle(forWritingTo: fileURL)
@@ -91,6 +92,12 @@ enum DesktopFileLogger {
                 try handle.write(contentsOf: data)
             } catch {
             }
+        }
+        
+        if sync {
+            queue.sync(execute: writeBlock)
+        } else {
+            queue.async(execute: writeBlock)
         }
     }
 

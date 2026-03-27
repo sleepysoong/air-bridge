@@ -16,7 +16,7 @@ final class AppContainer {
 
     init(appState: AppState) {
         self.appState = appState
-        DesktopFileLogger.log("AppContainer init started")
+        DesktopFileLogger.log("AppContainer init started", sync: true)
 
         let keychainStore = KeychainStore()
         let sessionKeyStore = SessionKeyStore(keychainStore: keychainStore)
@@ -39,7 +39,7 @@ final class AppContainer {
         self.clipboardSyncCoordinator = clipboardSyncCoordinator
         self.notificationMirrorCoordinator = notificationMirrorCoordinator
         self.pairingCoordinator = PairingCoordinator { RelayHTTPClient(baseURL: $0) }
-        DesktopFileLogger.log("AppContainer init completed")
+        DesktopFileLogger.log("AppContainer init completed", sync: true)
 
         clipboardSyncCoordinator.configureSendEnvelope { [weak self] channel, contentType, nonce, headerAAD, ciphertext in
             guard let self else { return }
@@ -63,37 +63,43 @@ final class AppContainer {
 
     func startIfNeeded() async {
         guard !didStart else {
-            DesktopFileLogger.log("AppContainer startIfNeeded skipped because already started")
+            DesktopFileLogger.log("AppContainer startIfNeeded skipped because already started", sync: true)
             return
         }
 
         didStart = true
-        DesktopFileLogger.log("AppContainer startIfNeeded started")
+        DesktopFileLogger.log("AppContainer startIfNeeded started", sync: true)
         NSApplication.shared.setActivationPolicy(.accessory)
+        DesktopFileLogger.log("Activation policy set to .accessory", sync: true)
 
+        DesktopFileLogger.log("About to call refreshAuthorizationStatus", sync: true)
         do {
             let granted = try await notificationMirrorCoordinator.refreshAuthorizationStatus()
             appState.notificationAuthorizationGranted = granted
-            DesktopFileLogger.log("Notification authorization refreshed: \(granted)")
+            DesktopFileLogger.log("Notification authorization refreshed: \(granted)", sync: true)
         } catch {
+            DesktopFileLogger.log("Notification authorization failed: \(error.localizedDescription)", level: .error, sync: true)
             appState.setLatestError(error)
         }
 
+        DesktopFileLogger.log("About to call loadPairedSession", sync: true)
         do {
             if let storedSession = try sessionKeyStore.loadPairedSession() {
-                DesktopFileLogger.log("Stored paired session found, starting clipboard sync and relay connect")
+                DesktopFileLogger.log("Stored paired session found, starting clipboard sync and relay connect", sync: true)
                 appState.pairedSession = storedSession
                 appState.peerDeviceID = storedSession.peerDeviceID
                 clipboardSyncCoordinator.start(session: storedSession)
+                DesktopFileLogger.log("About to connect relay", sync: true)
                 await connectRelay(using: storedSession, reconnecting: false)
             } else {
-                DesktopFileLogger.log("No stored paired session found")
+                DesktopFileLogger.log("No stored paired session found", sync: true)
             }
         } catch {
+            DesktopFileLogger.log("loadPairedSession failed: \(error.localizedDescription)", level: .error, sync: true)
             appState.setLatestError(error)
         }
 
-        DesktopFileLogger.log("AppContainer startIfNeeded finished")
+        DesktopFileLogger.log("AppContainer startIfNeeded finished", sync: true)
     }
 
     func activatePairedSession(_ session: PairedDeviceSession) async throws {

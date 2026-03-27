@@ -1,0 +1,1 @@
+Linux development commands known from repo docs: `go mod tidy`, `go run ./cmd/airbridge-relay`, `docker build -t airbridge-relay .`, `curl http://localhost:8080/healthz`, pairing API curls under server/README.md. Useful system commands: `git`, `ls`, `grep`, `docker`, `go`. Run commands from `/home/sleepysoong/air-bridge/server` for relay work.
