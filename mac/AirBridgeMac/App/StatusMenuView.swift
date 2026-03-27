@@ -53,6 +53,13 @@ struct StatusMenuView: View {
                 }
             }
             .disabled(!appState.isPaired)
+
+            Divider()
+
+            Button("종료") {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut("q")
         }
         .padding(14)
         .frame(width: 280, alignment: .leading)
