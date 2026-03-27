@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -10,6 +11,10 @@ struct AirBridgeApp: App {
     init() {
         DesktopFileLogger.installRuntimeLogging()
         DesktopFileLogger.log("AirBridge app init started", sync: true)
+        if let artworkURL = Bundle.module.url(forResource: "AppArtwork", withExtension: "png"),
+           let iconImage = NSImage(contentsOf: artworkURL) {
+            NSApplication.shared.applicationIconImage = iconImage
+        }
         let state = AppState()
         let container = AppContainer(appState: state)
 
