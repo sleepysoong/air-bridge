@@ -2,25 +2,19 @@ import Foundation
 import UserNotifications
 
 final class LocalNotificationGateway {
-    private let center: UNUserNotificationCenter
+    init() {}
 
-    init(center: UNUserNotificationCenter = .current()) {
-        self.center = center
-    }
-
-    @MainActor
     func currentAuthorizationStatus() async -> UNAuthorizationStatus {
         await withCheckedContinuation { continuation in
-            center.getNotificationSettings { settings in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
                 continuation.resume(returning: settings.authorizationStatus)
             }
         }
     }
 
-    @MainActor
     func requestAuthorization() async throws -> Bool {
         try await withCheckedThrowingContinuation { continuation in
-            center.requestAuthorization(options: [.badge, .sound]) { granted, error in
+            UNUserNotificationCenter.current().requestAuthorization(options: [.badge, .sound]) { granted, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
@@ -32,15 +26,16 @@ final class LocalNotificationGateway {
 
     @MainActor
     func apply(_ payload: NotificationPayload) async throws {
+        let notificationCenter = UNUserNotificationCenter.current()
         let identifier = "airbridge.notification.\(payload.remoteIdentifier)"
 
         switch payload.event {
         case .removed:
-            center.removeDeliveredNotifications(withIdentifiers: [identifier])
-            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            notificationCenter.removeDeliveredNotifications(withIdentifiers: [identifier])
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: [identifier])
         case .posted, .updated:
-            center.removeDeliveredNotifications(withIdentifiers: [identifier])
-            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            notificationCenter.removeDeliveredNotifications(withIdentifiers: [identifier])
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: [identifier])
 
             let content = UNMutableNotificationContent()
             content.title = payload.title.isEmpty ? payload.appName : payload.title
@@ -59,7 +54,7 @@ final class LocalNotificationGateway {
                 trigger: nil
             )
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                center.add(request) { error in
+                notificationCenter.add(request) { error in
                     if let error {
                         continuation.resume(throwing: error)
                         return
