@@ -54,8 +54,6 @@ class MainActivity : ComponentActivity() {
                 PairingScreen(
                     uiState = uiState,
                     onDeviceNameChanged = viewModel::updateDeviceName,
-                    onQrPayloadChanged = viewModel::updateQrPayload,
-                    onPreparePairing = viewModel::preparePairing,
                     onManualClipboardSend = viewModel::sendClipboardNow,
                     onRequestShizukuPermission = viewModel::requestShizukuPermission,
                     onOpenNotificationAccess = {

@@ -55,10 +55,6 @@ class PairingViewModel(
         mutableUiState.update { it.copy(deviceName = value) }
     }
 
-    fun updateQrPayload(value: String) {
-        mutableUiState.update { it.copy(qrPayload = value) }
-    }
-
     fun updateNotificationAccess(isGranted: Boolean) {
         mutableUiState.update { it.copy(notificationAccessGranted = isGranted) }
     }
@@ -80,13 +76,12 @@ class PairingViewModel(
         }
     }
 
-    fun preparePairing() {
-        val qrPayloadRaw = mutableUiState.value.qrPayload
+    private fun preparePairing(rawPayload: String) {
         val deviceName = mutableUiState.value.deviceName
         viewModelScope.launch {
             mutableUiState.update { it.copy(isBusy = true, errorMessage = null, infoMessage = null) }
             runCatching {
-                val qrPayload = parser.parse(qrPayloadRaw)
+                val qrPayload = parser.parse(rawPayload)
                 container.pairingRepository.preparePairing(qrPayload, deviceName)
             }.onSuccess { credentials ->
                 container.bridgeRuntime.startForegroundService()
@@ -110,8 +105,7 @@ class PairingViewModel(
     }
 
     fun applyScannedQr(rawValue: String) {
-        updateQrPayload(rawValue)
-        preparePairing()
+        preparePairing(rawValue)
     }
 
     fun sendClipboardNow() {
@@ -140,7 +134,6 @@ class PairingViewModel(
 
 data class PairingUiState(
     val deviceName: String = "",
-    val qrPayload: String = "",
     val isBusy: Boolean = false,
     val activeCredentials: StoredRelayCredentials? = null,
     val notificationAccessGranted: Boolean = false,

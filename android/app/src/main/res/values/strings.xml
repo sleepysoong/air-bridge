@@ -1,8 +1,8 @@
 <resources>
     <string name="app_name">Air Bridge</string>
-    <string name="notification_listener_label">Air Bridge Notification Access</string>
-    <string name="service_channel_name">Bridge connection</string>
-    <string name="service_notification_title">Air Bridge bridge active</string>
-    <string name="service_notification_text">Listening for Mac clipboard updates and forwarding Android notifications.</string>
+    <string name="notification_listener_label">Air Bridge 알림 접근</string>
+    <string name="service_channel_name">Air Bridge 연결 유지</string>
+    <string name="service_channel_description">Air Bridge 브리지 상태를 알려줘요.</string>
+    <string name="service_notification_title">Air Bridge 연결을 유지하고 있어요</string>
+    <string name="service_notification_text">Mac 클립보드와 Android 알림을 안전하게 이어 주고 있어요.</string>
 </resources>
-
