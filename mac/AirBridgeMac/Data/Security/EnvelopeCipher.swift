@@ -43,7 +43,73 @@ private struct EnvelopeAdditionalData: Codable {
     }
 }
 
+private struct PairingEnvelopeHeader: Codable {
+    let schemaVersion: Int
+    let channel: RelayChannel
+    let contentType: String
+    let senderDeviceID: String
+    let recipientDeviceID: String
+    let pairingSessionID: String
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case channel
+        case contentType = "content_type"
+        case senderDeviceID = "sender_device_id"
+        case recipientDeviceID = "recipient_device_id"
+        case pairingSessionID = "pairing_session_id"
+    }
+}
+
 struct EnvelopeCipher {
+    func encrypt<Payload: Encodable>(
+        _ payload: Payload,
+        channel: RelayChannel,
+        contentType: String,
+        pairingSessionID: String,
+        senderDeviceID: String,
+        recipientDeviceID: String,
+        localPrivateKeyData: Data,
+        peerPublicKeyData: Data
+    ) throws -> SealedRelayEnvelope {
+        let validatedContentType = try RelayInputValidator.contentType(contentType)
+        let validatedPairingSessionID = try RelayInputValidator.identifier(pairingSessionID, field: "pairing_session_id")
+        let validatedSenderDeviceID = try RelayInputValidator.identifier(senderDeviceID, field: "sender_device_id")
+        let validatedRecipientDeviceID = try RelayInputValidator.identifier(recipientDeviceID, field: "recipient_device_id")
+        let payloadData = try JSONEncoder.airBridge.encode(payload)
+        let headerAAD = try Self.pairingEnvelopeHeaderEncoder.encode(
+            PairingEnvelopeHeader(
+                schemaVersion: 1,
+                channel: channel,
+                contentType: validatedContentType,
+                senderDeviceID: validatedSenderDeviceID,
+                recipientDeviceID: validatedRecipientDeviceID,
+                pairingSessionID: validatedPairingSessionID
+            )
+        )
+        let key = try deriveDirectionKey(
+            pairingSessionID: validatedPairingSessionID,
+            senderDeviceID: validatedSenderDeviceID,
+            recipientDeviceID: validatedRecipientDeviceID,
+            localPrivateKeyData: localPrivateKeyData,
+            peerPublicKeyData: peerPublicKeyData
+        )
+        let sealedBox = try AES.GCM.seal(payloadData, using: key, authenticating: headerAAD)
+        let ciphertextWithTag = sealedBox.ciphertext + sealedBox.tag
+        _ = try RelayInputValidator.envelope(
+            contentType: validatedContentType,
+            nonce: Data(sealedBox.nonce),
+            headerAAD: headerAAD,
+            ciphertext: ciphertextWithTag
+        )
+
+        return SealedRelayEnvelope(
+            nonce: Data(sealedBox.nonce),
+            headerAAD: headerAAD,
+            ciphertext: ciphertextWithTag
+        )
+    }
+
     func encrypt<Payload: Encodable>(
         _ payload: Payload,
         channel: RelayChannel,
@@ -84,6 +150,64 @@ struct EnvelopeCipher {
             headerAAD: aad,
             ciphertext: ciphertextWithTag
         )
+    }
+
+    func decrypt<Payload: Decodable>(
+        _ payloadType: Payload.Type,
+        envelope: RelayEnvelope,
+        pairingSessionID: String,
+        expectedRecipientDeviceID: String,
+        localPrivateKeyData: Data,
+        peerPublicKeyData: Data
+    ) throws -> Payload {
+        let validatedPairingSessionID = try RelayInputValidator.identifier(pairingSessionID, field: "pairing_session_id")
+        let validatedExpectedRecipientDeviceID = try RelayInputValidator.identifier(
+            expectedRecipientDeviceID,
+            field: "recipient_device_id"
+        )
+        _ = try RelayInputValidator.envelope(
+            contentType: envelope.contentType,
+            nonce: envelope.nonce,
+            headerAAD: envelope.headerAAD,
+            ciphertext: envelope.ciphertext
+        )
+
+        let expectedHeaderAAD = try Self.pairingEnvelopeHeaderEncoder.encode(
+            PairingEnvelopeHeader(
+                schemaVersion: 1,
+                channel: envelope.channel,
+                contentType: envelope.contentType,
+                senderDeviceID: envelope.senderDeviceID,
+                recipientDeviceID: validatedExpectedRecipientDeviceID,
+                pairingSessionID: validatedPairingSessionID
+            )
+        )
+
+        guard envelope.headerAAD == expectedHeaderAAD else {
+            throw EnvelopeCipherError.aadMismatch
+        }
+
+        let key = try deriveDirectionKey(
+            pairingSessionID: validatedPairingSessionID,
+            senderDeviceID: envelope.senderDeviceID,
+            recipientDeviceID: validatedExpectedRecipientDeviceID,
+            localPrivateKeyData: localPrivateKeyData,
+            peerPublicKeyData: peerPublicKeyData
+        )
+
+        guard envelope.ciphertext.count >= 16 else {
+            throw EnvelopeCipherError.invalidCiphertext
+        }
+
+        let ciphertext = envelope.ciphertext.dropLast(16)
+        let tag = envelope.ciphertext.suffix(16)
+        let sealedBox = try AES.GCM.SealedBox(
+            nonce: AES.GCM.Nonce(data: envelope.nonce),
+            ciphertext: ciphertext,
+            tag: tag
+        )
+        let plaintext = try AES.GCM.open(sealedBox, using: key, authenticating: envelope.headerAAD)
+        return try JSONDecoder.airBridge.decode(payloadType, from: plaintext)
     }
 
     func decrypt<Payload: Decodable>(
@@ -134,4 +258,39 @@ struct EnvelopeCipher {
         let plaintext = try AES.GCM.open(sealedBox, using: key, authenticating: envelope.headerAAD)
         return try JSONDecoder.airBridge.decode(payloadType, from: plaintext)
     }
+
+    private func deriveDirectionKey(
+        pairingSessionID: String,
+        senderDeviceID: String,
+        recipientDeviceID: String,
+        localPrivateKeyData: Data,
+        peerPublicKeyData: Data
+    ) throws -> SymmetricKey {
+        let sharedSecret = try deriveSharedSecret(
+            localPrivateKeyData: localPrivateKeyData,
+            peerPublicKeyData: peerPublicKeyData
+        )
+        let info = Data("air-bridge|aes-gcm|\(senderDeviceID)|\(recipientDeviceID)|v1".utf8)
+        let salt = Data(pairingSessionID.utf8)
+        return sharedSecret.hkdfDerivedSymmetricKey(
+            using: SHA256.self,
+            salt: salt,
+            sharedInfo: info,
+            outputByteCount: 32
+        )
+    }
+
+    private func deriveSharedSecret(
+        localPrivateKeyData: Data,
+        peerPublicKeyData: Data
+    ) throws -> SharedSecret {
+        let privateKey = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: localPrivateKeyData)
+        let peerPublicKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: peerPublicKeyData)
+        return try privateKey.sharedSecretFromKeyAgreement(with: peerPublicKey)
+    }
+
+    private static let pairingEnvelopeHeaderEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        return encoder
+    }()
 }

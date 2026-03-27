@@ -7,96 +7,127 @@ final class ClipboardPayloadMapper {
     private let jpegPasteboardType = NSPasteboard.PasteboardType(UTType.jpeg.identifier)
 
     func capturePayload(
-        originDeviceID: String,
         from pasteboard: NSPasteboard = .general
     ) throws -> ClipboardPayload? {
         guard let item = pasteboard.pasteboardItems?.first else {
             return nil
         }
 
-        var payloadItems: [ClipboardPayloadItem] = []
-
-        if let string = item.string(forType: .string), let data = string.data(using: .utf8) {
-            payloadItems.append(.fromData(data, mimeType: "text/plain"))
-        }
-
-        if let uriList = item.string(forType: .URL), let data = uriList.data(using: .utf8) {
-            payloadItems.append(.fromData(data, mimeType: "text/uri-list"))
-        }
+        let label = pasteboard.name.rawValue
 
         if let htmlData = item.data(forType: .html) {
-            payloadItems.append(.fromData(htmlData, mimeType: "text/html"))
+            let htmlValue = String(data: htmlData, encoding: .utf8)
+            let textValue = item.string(forType: .string)
+            let payload = ClipboardPayload(
+                mimeType: "text/html",
+                label: label,
+                textValue: textValue,
+                htmlValue: htmlValue
+            )
+            try payload.requireSupportedSize()
+            return payload
         }
 
         if let rtfData = item.data(forType: .rtf) {
-            payloadItems.append(.fromData(rtfData, mimeType: "text/rtf"))
+            let payload = ClipboardPayload(
+                mimeType: "text/rtf",
+                label: label,
+                binaryBase64: rtfData.rawBase64EncodedString
+            )
+            try payload.requireSupportedSize()
+            return payload
         }
 
         if let pngData = item.data(forType: .png) {
-            payloadItems.append(.fromData(pngData, mimeType: "image/png"))
+            let payload = ClipboardPayload(
+                mimeType: "image/png",
+                label: label,
+                binaryBase64: pngData.rawBase64EncodedString
+            )
+            try payload.requireSupportedSize()
+            return payload
         }
 
         if let jpegData = item.data(forType: jpegPasteboardType) {
-            payloadItems.append(.fromData(jpegData, mimeType: "image/jpeg"))
+            let payload = ClipboardPayload(
+                mimeType: "image/jpeg",
+                label: label,
+                binaryBase64: jpegData.rawBase64EncodedString
+            )
+            try payload.requireSupportedSize()
+            return payload
         }
 
-        guard !payloadItems.isEmpty else {
-            return nil
+        if let uriString = item.string(forType: .URL) {
+            let payload = ClipboardPayload(
+                mimeType: "text/uri-list",
+                label: label,
+                uriList: [uriString]
+            )
+            try payload.requireSupportedSize()
+            return payload
         }
 
-        let payload = ClipboardPayload(
-            originDeviceID: originDeviceID,
-            createdAt: Date(),
-            items: payloadItems
-        )
-
-        guard payload.totalBytes <= Self.maxPayloadBytes else {
-            throw ClipboardPayloadError.payloadTooLarge
+        if let string = item.string(forType: .string) {
+            let payload = ClipboardPayload(
+                mimeType: "text/plain",
+                label: label,
+                textValue: string
+            )
+            try payload.requireSupportedSize()
+            return payload
         }
 
-        return payload
+        return nil
     }
 
     func apply(
         _ payload: ClipboardPayload,
         to pasteboard: NSPasteboard = .general
     ) throws {
-        guard !payload.items.isEmpty else {
-            throw ClipboardPayloadError.unsupportedPasteboard
-        }
+        try payload.requireSupportedSize()
 
         let item = NSPasteboardItem()
         var wroteAnyValue = false
 
-        for payloadItem in payload.items {
-            let data = payloadItem.data
-
-            switch payloadItem.mimeType {
-            case "text/plain":
-                if let string = String(data: data, encoding: .utf8) {
-                    item.setString(string, forType: .string)
-                    wroteAnyValue = true
-                }
-            case "text/uri-list":
-                if let string = String(data: data, encoding: .utf8) {
-                    item.setString(string, forType: .URL)
-                    wroteAnyValue = true
-                }
-            case "text/html":
-                item.setData(data, forType: .html)
+        switch payload.mimeType {
+        case "text/plain":
+            if let textValue = payload.textValue {
+                item.setString(textValue, forType: .string)
                 wroteAnyValue = true
-            case "text/rtf":
-                item.setData(data, forType: .rtf)
-                wroteAnyValue = true
-            case "image/png":
-                item.setData(data, forType: .png)
-                wroteAnyValue = true
-            case "image/jpeg":
-                item.setData(data, forType: jpegPasteboardType)
-                wroteAnyValue = true
-            default:
-                break
             }
+        case "text/uri-list":
+            if let firstURI = payload.uriList.first {
+                item.setString(firstURI, forType: .URL)
+                wroteAnyValue = true
+            }
+        case "text/html":
+            if let htmlValue = payload.htmlValue {
+                if let htmlData = htmlValue.data(using: .utf8) {
+                    item.setData(htmlData, forType: .html)
+                    wroteAnyValue = true
+                }
+                if let textValue = payload.textValue {
+                    item.setString(textValue, forType: .string)
+                }
+            }
+        case "text/rtf":
+            if let binaryBase64 = payload.binaryBase64 {
+                item.setData(try Data(rawBase64Encoded: binaryBase64), forType: .rtf)
+                wroteAnyValue = true
+            }
+        case "image/png":
+            if let binaryBase64 = payload.binaryBase64 {
+                item.setData(try Data(rawBase64Encoded: binaryBase64), forType: .png)
+                wroteAnyValue = true
+            }
+        case "image/jpeg":
+            if let binaryBase64 = payload.binaryBase64 {
+                item.setData(try Data(rawBase64Encoded: binaryBase64), forType: jpegPasteboardType)
+                wroteAnyValue = true
+            }
+        default:
+            break
         }
 
         guard wroteAnyValue else {

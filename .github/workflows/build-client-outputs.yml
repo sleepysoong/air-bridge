@@ -1,67 +1,113 @@
-name: build-client-outputs
+name: release-client-builds
 
 on:
   workflow_dispatch:
   push:
-    paths:
-      - "android/**"
-      - "mac/**"
-      - ".github/workflows/build-client-outputs.yml"
+    branches:
+      - main
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-client-outputs-${{ github.ref }}
+  group: release-client-builds-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  changes:
+  prepare:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
     outputs:
-      android: ${{ steps.filter.outputs.android }}
-      mac: ${{ steps.filter.outputs.mac }}
-      app_version: ${{ steps.version.outputs.app_version }}
-      version_code: ${{ steps.version.outputs.version_code }}
+      current_version: ${{ steps.meta.outputs.current_version }}
+      next_version: ${{ steps.meta.outputs.next_version }}
+      version_code: ${{ steps.meta.outputs.version_code }}
+      previous_version: ${{ steps.meta.outputs.previous_version }}
+      previous_tag: ${{ steps.meta.outputs.previous_tag }}
+      android_changed: ${{ steps.meta.outputs.android_changed }}
+      mac_changed: ${{ steps.meta.outputs.mac_changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Detect changed targets
-        id: filter
-        uses: dorny/paths-filter@v3
         with:
-          filters: |
-            android:
-              - 'android/**'
-            mac:
-              - 'mac/**'
+          fetch-depth: 0
 
-      - name: Bump shared app version
-        id: version
+      - name: Determine release metadata
+        id: meta
+        shell: bash
         run: |
-          CURRENT_VERSION=$(grep 'versionName = "' android/app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
-          CURRENT_VERSION_CODE=$(grep 'versionCode = ' android/app/build.gradle.kts | sed -E 's/.*versionCode = ([0-9]+).*/\1/')
+          set -euo pipefail
+
+          CURRENT_VERSION=$(tr -d '[:space:]' < VERSION)
+          if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION 파일은 semantic version 형식이어야 해요: $CURRENT_VERSION"
+            exit 1
+          fi
 
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
           NEXT_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
-          NEXT_VERSION_CODE=$((CURRENT_VERSION_CODE + 1))
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH + 1))
 
-          echo "app_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "version_code=$NEXT_VERSION_CODE" >> "$GITHUB_OUTPUT"
+          if git rev-parse "refs/tags/v${CURRENT_VERSION}" >/dev/null 2>&1; then
+            PREVIOUS_TAG="v${CURRENT_VERSION}"
+            PREVIOUS_VERSION="$CURRENT_VERSION"
+          else
+            PREVIOUS_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)
+            PREVIOUS_VERSION="${PREVIOUS_TAG#v}"
+          fi
 
-  build-android:
-    needs: changes
-    if: needs.changes.outputs.android == 'true'
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGED_FILES=$(git diff --name-only "$PREVIOUS_TAG..${GITHUB_SHA}" -- android mac || true)
+            if printf '%s\n' "$CHANGED_FILES" | grep -q '^android/'; then
+              ANDROID_CHANGED=true
+            else
+              ANDROID_CHANGED=false
+            fi
+            if printf '%s\n' "$CHANGED_FILES" | grep -q '^mac/'; then
+              MAC_CHANGED=true
+            else
+              MAC_CHANGED=false
+            fi
+          else
+            ANDROID_CHANGED=true
+            MAC_CHANGED=true
+          fi
+
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "previous_version=$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          echo "android_changed=$ANDROID_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "mac_changed=$MAC_CHANGED" >> "$GITHUB_OUTPUT"
+
+  android-asset:
+    needs: prepare
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Try reusing previous Android asset
+        id: reuse
+        if: needs.prepare.outputs.android_changed == 'false' && needs.prepare.outputs.previous_version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/android/previous dist/android
+          if gh release download "v${{ needs.prepare.outputs.previous_version }}" --pattern "air-bridge_v${{ needs.prepare.outputs.previous_version }}.apk" --dir dist/android/previous; then
+            mv "dist/android/previous/air-bridge_v${{ needs.prepare.outputs.previous_version }}.apk" "dist/android/air-bridge_v${{ needs.prepare.outputs.next_version }}.apk"
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Java 17
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -69,64 +115,99 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
         uses: android-actions/setup-android@v3
 
       - name: Accept Android SDK licenses
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
         run: yes | sdkmanager --licenses
 
       - name: Install Android SDK packages
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Write release version file
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        shell: bash
+        run: printf '%s\n' '${{ needs.prepare.outputs.next_version }}' > VERSION
+
       - name: Prepare local properties
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        shell: bash
         run: printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > android/local.properties
 
-      - name: Apply bumped Android version
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path("android/app/build.gradle.kts")
-          text = path.read_text()
-          text = re.sub(r'versionCode = \d+', 'versionCode = ${{ needs.changes.outputs.version_code }}', text, count=1)
-          text = re.sub(r'versionName = "[^"]+"', 'versionName = "${{ needs.changes.outputs.app_version }}"', text, count=1)
-          path.write_text(text)
-          PY
-
       - name: Build installable APK
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
         run: ./gradlew assembleDebug
         working-directory: /home/runner/work/air-bridge/air-bridge/android
 
       - name: Prepare Android output
+        if: needs.prepare.outputs.android_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        shell: bash
         run: |
-          mkdir -p outputs/android
-          cp android/app/build/outputs/apk/debug/app-debug.apk "outputs/android/air-bridge_v${{ needs.changes.outputs.app_version }}.apk"
+          set -euo pipefail
+          mkdir -p dist/android
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/android/air-bridge_v${{ needs.prepare.outputs.next_version }}.apk"
 
-      - name: Upload Android artifact
+      - name: Upload Android release asset
         uses: actions/upload-artifact@v4
         with:
-          name: android-output
-          path: outputs/android/air-bridge_v${{ needs.changes.outputs.app_version }}.apk
+          name: android-release-asset
+          path: dist/android/air-bridge_v${{ needs.prepare.outputs.next_version }}.apk
 
-  build-mac:
-    needs: changes
-    if: needs.changes.outputs.mac == 'true'
+  mac-asset:
+    needs: prepare
     runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Try reusing previous macOS asset
+        id: reuse
+        if: needs.prepare.outputs.mac_changed == 'false' && needs.prepare.outputs.previous_version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/mac/previous dist/mac/unpacked dist/mac
+          if gh release download "v${{ needs.prepare.outputs.previous_version }}" --pattern "air-bridge_v${{ needs.prepare.outputs.previous_version }}.app.zip" --dir dist/mac/previous; then
+            ditto -x -k "dist/mac/previous/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app.zip" dist/mac/unpacked
+            if [ -d "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app" ]; then
+              mv "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app" "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
+            elif [ -d "dist/mac/unpacked/AirBridgeMac.app" ]; then
+              mv "dist/mac/unpacked/AirBridgeMac.app" "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
+            else
+              echo "이전 macOS asset 안에서 .app 번들을 찾지 못했어요"
+              exit 1
+            fi
+            ditto -c -k --sequesterRsrc --keepParent "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app" "dist/mac/air-bridge_v${{ needs.prepare.outputs.next_version }}.app.zip"
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write release version file
+        if: needs.prepare.outputs.mac_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        shell: bash
+        run: printf '%s\n' '${{ needs.prepare.outputs.next_version }}' > VERSION
+
       - name: Show toolchain versions
+        if: needs.prepare.outputs.mac_changed == 'true' || steps.reuse.outputs.reused != 'true'
         run: |
           swift --version
           xcodebuild -version
 
       - name: Build release binary
+        if: needs.prepare.outputs.mac_changed == 'true' || steps.reuse.outputs.reused != 'true'
         run: swift build --package-path mac -c release --product AirBridgeMac
 
       - name: Bundle macOS app
+        if: needs.prepare.outputs.mac_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        shell: bash
         run: |
-          APP="dist/AirBridgeMac.app"
+          set -euo pipefail
+          APP="dist/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
           cp "mac/.build/release/AirBridgeMac" "$APP/Contents/MacOS/AirBridgeMac"
@@ -146,9 +227,9 @@ jobs:
             <key>CFBundlePackageType</key>
             <string>APPL</string>
             <key>CFBundleShortVersionString</key>
-            <string>${{ needs.changes.outputs.app_version }}</string>
+            <string>${{ needs.prepare.outputs.next_version }}</string>
             <key>CFBundleVersion</key>
-            <string>${{ needs.changes.outputs.version_code }}</string>
+            <string>${{ needs.prepare.outputs.version_code }}</string>
             <key>LSMinimumSystemVersion</key>
             <string>14.0</string>
             <key>NSHighResolutionCapable</key>
@@ -163,76 +244,91 @@ jobs:
           EOF
 
       - name: Ad-hoc sign app
-        run: codesign --force --deep --sign - "dist/AirBridgeMac.app"
+        if: needs.prepare.outputs.mac_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        run: codesign --force --deep --sign - "dist/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
 
       - name: Verify app signature
-        run: codesign --verify --deep --strict --verbose=2 "dist/AirBridgeMac.app"
+        if: needs.prepare.outputs.mac_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        run: codesign --verify --deep --strict --verbose=2 "dist/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
 
-      - name: Archive App
+      - name: Archive macOS app bundle
+        if: needs.prepare.outputs.mac_changed == 'true' || steps.reuse.outputs.reused != 'true'
+        shell: bash
         run: |
-          mkdir -p outputs/mac
-          cd dist
-          zip -r -y "../outputs/mac/air-bridge_v${{ needs.changes.outputs.app_version }}.zip" AirBridgeMac.app
-          cd ..
+          set -euo pipefail
+          ditto -c -k --sequesterRsrc --keepParent "dist/air-bridge_v${{ needs.prepare.outputs.next_version }}.app" "dist/air-bridge_v${{ needs.prepare.outputs.next_version }}.app.zip"
 
-      - name: Upload macOS artifact
+      - name: Upload macOS release asset
         uses: actions/upload-artifact@v4
         with:
-          name: mac-output
-          path: outputs/mac/air-bridge_v${{ needs.changes.outputs.app_version }}.zip
+          name: mac-release-asset
+          path: dist/air-bridge_v${{ needs.prepare.outputs.next_version }}.app.zip
 
-  publish-outputs:
-    needs: [changes, build-android, build-mac]
-    if: always() && (needs.changes.outputs.android == 'true' || needs.changes.outputs.mac == 'true')
+  release:
+    needs: [prepare, android-asset, mac-asset]
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Fail if any requested build failed
-        run: |
-          if [ "${{ needs.build-android.result }}" = "failure" ] || [ "${{ needs.build-mac.result }}" = "failure" ]; then
-            exit 1
-          fi
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download Android output
-        if: needs.changes.outputs.android == 'true'
+      - name: Download Android release asset
         uses: actions/download-artifact@v4
         with:
-          name: android-output
-          path: outputs/android
+          name: android-release-asset
+          path: dist/release
 
-      - name: Download macOS output
-        if: needs.changes.outputs.mac == 'true'
+      - name: Download macOS release asset
         uses: actions/download-artifact@v4
         with:
-          name: mac-output
-          path: outputs/mac
+          name: mac-release-asset
+          path: dist/release
 
-      - name: Persist bumped shared app version
+      - name: Persist next VERSION
+        shell: bash
+        run: printf '%s\n' '${{ needs.prepare.outputs.next_version }}' > VERSION
+
+      - name: Commit release version
+        shell: bash
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path("android/app/build.gradle.kts")
-          text = path.read_text()
-          text = re.sub(r'versionCode = \d+', 'versionCode = ${{ needs.changes.outputs.version_code }}', text, count=1)
-          text = re.sub(r'versionName = "[^"]+"', 'versionName = "${{ needs.changes.outputs.app_version }}"', text, count=1)
-          path.write_text(text)
-          PY
-
-      - name: Commit generated outputs
-        run: |
-          if [ -z "$(git status --porcelain -- outputs android/app/build.gradle.kts)" ]; then
-            echo "No output changes to commit"
-            exit 0
-          fi
-
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add outputs android/app/build.gradle.kts
-          git commit -m "build: bump app version to v${{ needs.changes.outputs.app_version }} [skip ci]"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          git add VERSION
+          if git diff --cached --quiet; then
+            echo "VERSION 변경이 없어서 커밋을 건너뛰어요"
+          else
+            git commit -m "chore: release v${{ needs.prepare.outputs.next_version }} [skip release]"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
+
+      - name: Create tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_SHA=$(git rev-parse HEAD)
+          git tag "v${{ needs.prepare.outputs.next_version }}" "$RELEASE_SHA"
+          git push origin "v${{ needs.prepare.outputs.next_version }}"
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > dist/release-notes.md <<'EOF'
+          ## Summary
+          - VERSION를 ${{ needs.prepare.outputs.next_version }}로 올렸어요.
+          - Android와 macOS 릴리즈 산출물을 함께 첨부했어요.
+          EOF
+
+      - name: Create GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "v${{ needs.prepare.outputs.next_version }}" \
+            "dist/release/air-bridge_v${{ needs.prepare.outputs.next_version }}.apk" \
+            "dist/release/air-bridge_v${{ needs.prepare.outputs.next_version }}.app.zip#air-bridge_v${{ needs.prepare.outputs.next_version }}.app" \
+            --target "$(git rev-parse HEAD)" \
+            --title "v${{ needs.prepare.outputs.next_version }}" \
+            --notes-file dist/release-notes.md

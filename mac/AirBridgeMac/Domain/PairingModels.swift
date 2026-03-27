@@ -67,6 +67,7 @@ struct PairingLookupResult: Equatable {
 
 struct PairedDeviceSession: Codable, Equatable {
     let relayBaseURL: URL
+    let pairingSessionID: String
     let localDeviceID: String
     let peerDeviceID: String
     let relayToken: String
@@ -75,6 +76,57 @@ struct PairedDeviceSession: Codable, Equatable {
     let localPublicKeyData: Data
     let peerPublicKeyData: Data
     let pairedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case relayBaseURL
+        case pairingSessionID
+        case localDeviceID
+        case peerDeviceID
+        case relayToken
+        case sessionKeyData
+        case localPrivateKeyData
+        case localPublicKeyData
+        case peerPublicKeyData
+        case pairedAt
+    }
+
+    init(
+        relayBaseURL: URL,
+        pairingSessionID: String,
+        localDeviceID: String,
+        peerDeviceID: String,
+        relayToken: String,
+        sessionKeyData: Data,
+        localPrivateKeyData: Data,
+        localPublicKeyData: Data,
+        peerPublicKeyData: Data,
+        pairedAt: Date
+    ) {
+        self.relayBaseURL = relayBaseURL
+        self.pairingSessionID = pairingSessionID
+        self.localDeviceID = localDeviceID
+        self.peerDeviceID = peerDeviceID
+        self.relayToken = relayToken
+        self.sessionKeyData = sessionKeyData
+        self.localPrivateKeyData = localPrivateKeyData
+        self.localPublicKeyData = localPublicKeyData
+        self.peerPublicKeyData = peerPublicKeyData
+        self.pairedAt = pairedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        relayBaseURL = try container.decode(URL.self, forKey: .relayBaseURL)
+        pairingSessionID = try container.decodeIfPresent(String.self, forKey: .pairingSessionID) ?? ""
+        localDeviceID = try container.decode(String.self, forKey: .localDeviceID)
+        peerDeviceID = try container.decode(String.self, forKey: .peerDeviceID)
+        relayToken = try container.decode(String.self, forKey: .relayToken)
+        sessionKeyData = try container.decode(Data.self, forKey: .sessionKeyData)
+        localPrivateKeyData = try container.decode(Data.self, forKey: .localPrivateKeyData)
+        localPublicKeyData = try container.decode(Data.self, forKey: .localPublicKeyData)
+        peerPublicKeyData = try container.decode(Data.self, forKey: .peerPublicKeyData)
+        pairedAt = try container.decode(Date.self, forKey: .pairedAt)
+    }
 }
 
 struct RelayEnvelope: Equatable {

@@ -43,6 +43,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 
 class BridgeRuntime(
@@ -64,6 +66,9 @@ class BridgeRuntime(
 
     @Volatile
     private var runtimeJob: Job? = null
+    @Volatile
+    private var activeConnection: RelaySocketConnection? = null
+    private val lifecycleMutex = Mutex()
     
     lateinit var clipboardSyncCoordinator: ClipboardSyncCoordinator
 
@@ -78,13 +83,12 @@ class BridgeRuntime(
     }
 
     override fun onForegroundServiceStopped() {
-        runtimeJob?.cancel()
-        runtimeJob = null
-        mutableSnapshot.value = mutableSnapshot.value.copy(
-            isServiceRunning = false,
-            isConnected = false,
-            status = "브리지 서비스가 중지되었어요",
-        )
+        scope.launch {
+            resetRuntime(
+                keepServiceRunning = false,
+                status = "브리지 서비스가 중지되었어요",
+            )
+        }
     }
 
     override suspend fun publishClipboard(
@@ -110,6 +114,25 @@ class BridgeRuntime(
 
     fun startForegroundService() {
         AirBridgeRelayForegroundService.start(appContext)
+    }
+
+    fun reloadStoredPairing() {
+        scope.launch {
+            resetRuntime(
+                keepServiceRunning = true,
+                status = "새 페어링 정보를 적용했어요",
+            )
+            ensureRunning()
+        }
+    }
+
+    fun clearActivePairing() {
+        scope.launch {
+            resetRuntime(
+                keepServiceRunning = mutableSnapshot.value.isServiceRunning,
+                status = "저장된 페어링을 정리했어요",
+            )
+        }
     }
 
     private suspend fun connectionLoop() {
@@ -157,6 +180,7 @@ class BridgeRuntime(
         credentials: StoredRelayCredentials,
         identity: StoredDeviceIdentity,
     ) = coroutineScope {
+        activeConnection = connection
         val senderJob = launch {
             outboundMessages.collect { payload ->
                 sendPayload(connection, payload, credentials, identity)
@@ -202,7 +226,27 @@ class BridgeRuntime(
         } finally {
             senderJob.cancel()
             connection.close()
+            if (activeConnection === connection) {
+                activeConnection = null
+            }
             mutableSnapshot.value = mutableSnapshot.value.copy(isConnected = false)
+        }
+    }
+
+    private suspend fun resetRuntime(
+        keepServiceRunning: Boolean,
+        status: String,
+    ) {
+        lifecycleMutex.withLock {
+            runtimeJob?.cancel()
+            runtimeJob = null
+            activeConnection?.close()
+            activeConnection = null
+            clipboardSyncCoordinator.resetSyncState()
+            mutableSnapshot.value = BridgeRuntimeSnapshot(
+                isServiceRunning = keepServiceRunning,
+                status = status,
+            )
         }
     }
 
@@ -367,4 +411,3 @@ private sealed interface OutboundPayload {
 
     data class Notification(val snapshot: NotificationSnapshot) : OutboundPayload
 }
-

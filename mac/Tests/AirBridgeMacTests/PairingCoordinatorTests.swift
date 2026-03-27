@@ -99,6 +99,7 @@ final class PairingCoordinatorTests: XCTestCase {
         let pairedSession = try await coordinator.completePairing(draft: draft, snapshot: snapshot)
 
         XCTAssertEqual(pairedSession.peerDeviceID, "dev_2")
+        XCTAssertEqual(pairedSession.pairingSessionID, "ps_1")
         XCTAssertEqual(pairedSession.pairedAt, completedAt)
         XCTAssertEqual(fakeClient.completeCallCount, 0)
     }

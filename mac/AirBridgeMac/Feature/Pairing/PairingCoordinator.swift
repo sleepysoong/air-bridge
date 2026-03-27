@@ -115,6 +115,7 @@ final class PairingCoordinator {
 
         return PairedDeviceSession(
             relayBaseURL: draft.relayBaseURL,
+            pairingSessionID: draft.pairingSessionID,
             localDeviceID: draft.localDeviceID,
             peerDeviceID: peerDeviceID,
             relayToken: draft.relayToken,

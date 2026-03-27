@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 final class ClipboardSyncCoordinator {
-    static let contentType = "application/vnd.airbridge.clipboard+json"
+    static let contentType = "application/json"
 
     typealias EnvelopeSender = @MainActor (
         _ channel: RelayChannel,
@@ -71,15 +71,27 @@ final class ClipboardSyncCoordinator {
         _ envelope: RelayEnvelope,
         session: PairedDeviceSession
     ) async throws {
-        let payload = try envelopeCipher.decrypt(
-            ClipboardPayload.self,
-            envelope: envelope,
-            expectedRecipientDeviceID: session.localDeviceID,
-            sessionKeyData: session.sessionKeyData
-        )
-
-        guard payload.originDeviceID != session.localDeviceID else {
+        guard envelope.senderDeviceID != session.localDeviceID else {
             return
+        }
+
+        let payload: ClipboardPayload
+        if !session.pairingSessionID.isEmpty {
+            payload = try envelopeCipher.decrypt(
+                ClipboardPayload.self,
+                envelope: envelope,
+                pairingSessionID: session.pairingSessionID,
+                expectedRecipientDeviceID: session.localDeviceID,
+                localPrivateKeyData: session.localPrivateKeyData,
+                peerPublicKeyData: session.peerPublicKeyData
+            )
+        } else {
+            payload = try envelopeCipher.decrypt(
+                ClipboardPayload.self,
+                envelope: envelope,
+                expectedRecipientDeviceID: session.localDeviceID,
+                sessionKeyData: session.sessionKeyData
+            )
         }
 
         lastSyntheticDigest = digest(for: payload)
@@ -94,7 +106,7 @@ final class ClipboardSyncCoordinator {
         }
 
         do {
-            guard let payload = try mapper.capturePayload(originDeviceID: activeSession.localDeviceID) else {
+            guard let payload = try mapper.capturePayload() else {
                 return
             }
 
@@ -104,14 +116,28 @@ final class ClipboardSyncCoordinator {
                 return
             }
 
-            let sealedEnvelope = try envelopeCipher.encrypt(
-                payload,
-                channel: .clipboard,
-                contentType: Self.contentType,
-                senderDeviceID: activeSession.localDeviceID,
-                recipientDeviceID: activeSession.peerDeviceID,
-                sessionKeyData: activeSession.sessionKeyData
-            )
+            let sealedEnvelope: SealedRelayEnvelope
+            if !activeSession.pairingSessionID.isEmpty {
+                sealedEnvelope = try envelopeCipher.encrypt(
+                    payload,
+                    channel: .clipboard,
+                    contentType: Self.contentType,
+                    pairingSessionID: activeSession.pairingSessionID,
+                    senderDeviceID: activeSession.localDeviceID,
+                    recipientDeviceID: activeSession.peerDeviceID,
+                    localPrivateKeyData: activeSession.localPrivateKeyData,
+                    peerPublicKeyData: activeSession.peerPublicKeyData
+                )
+            } else {
+                sealedEnvelope = try envelopeCipher.encrypt(
+                    payload,
+                    channel: .clipboard,
+                    contentType: Self.contentType,
+                    senderDeviceID: activeSession.localDeviceID,
+                    recipientDeviceID: activeSession.peerDeviceID,
+                    sessionKeyData: activeSession.sessionKeyData
+                )
+            }
 
             try await sendEnvelope(
                 .clipboard,

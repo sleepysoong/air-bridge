@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
                     onCompletePairing = viewModel::completePairing,
                     onManualClipboardSend = viewModel::sendClipboardNow,
                     onOpenNotificationAccess = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION.CODES.TIRAMISU) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             notificationAccessLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))

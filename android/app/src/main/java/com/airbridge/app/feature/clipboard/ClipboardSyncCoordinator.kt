@@ -62,6 +62,14 @@ class ClipboardSyncCoordinator(
         mutableStatus.value = mutableStatus.value.copy(isMonitoring = false)
     }
 
+    suspend fun resetSyncState() {
+        stateMutex.withLock {
+            lastSentFingerprint = null
+            lastAppliedFingerprint = null
+            mutableStatus.value = ClipboardSyncStatus(isMonitoring = monitorJob?.isActive == true)
+        }
+    }
+
     fun sendCurrentClipboardManually() {
         scope.launch {
             runCatching {

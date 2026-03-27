@@ -68,7 +68,7 @@ mac/
 
 - Mac에서 pairing session을 생성해야 해요.
 - QR에 필요한 세션 정보와 공개키를 표시해야 해요.
-- Android가 참여한 뒤 SAS 확인 흐름을 이어서 완료해야 해요.
+- Android가 참여한 뒤 필요하면 6자리 확인 코드를 참고하고 완료할 수 있어야 해요.
 - SAS 계산 로직은 현재 macOS 쪽에 들어 있지만, Android와 최종 합의 전까지는 잠정 규격으로 취급해야 해요.
 
 ### Clipboard 계층
@@ -140,7 +140,7 @@ Content-Type: application/json
 }
 ```
 
-Mac은 SAS가 일치한다고 사용자가 확인한 뒤에만 이 완료 호출을 보내야 해요.
+Mac은 QR 기반 페어링을 완료하고, 필요하면 6자리 확인 코드를 추가로 참고할 수 있어야 해요.
 
 ### 4. WebSocket 연결
 

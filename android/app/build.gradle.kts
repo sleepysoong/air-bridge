@@ -5,6 +5,19 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+fun readProjectVersion(): String {
+    val versionFile = rootProject.file("../VERSION")
+    return versionFile.readText().trim().ifBlank { "1.0.0" }
+}
+
+fun semanticVersionCode(version: String): Int {
+    val (major, minor, patch) = version.split('.').map(String::toInt)
+    return (major * 10_000) + (minor * 100) + patch
+}
+
+val projectVersion = readProjectVersion()
+val projectVersionCode = semanticVersionCode(projectVersion)
+
 android {
     namespace = "com.airbridge.app"
     compileSdk = 36
@@ -22,8 +35,8 @@ android {
         applicationId = "com.airbridge.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.1.11"
+        versionCode = projectVersionCode
+        versionName = projectVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

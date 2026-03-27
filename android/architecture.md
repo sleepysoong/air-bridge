@@ -166,7 +166,7 @@ android/
    - device_name 128자 검증
    - pairing_secret 128자 검증
 3. X25519 키 생성, SAS 계산
-4. 사용자 SAS 확인 → `PairingRepository.completePairing()` → Relay `POST /complete`
+4. 사용자는 필요하면 6자리 확인 코드를 참고한 뒤 `PairingRepository.completePairing()` → Relay `POST /complete`
 5. Credentials 저장 (DeviceIdentityStore, RelayCredentialStore)
 
 ### 클립보드 플로우 (Android → Mac)
@@ -225,7 +225,7 @@ Content-Type: application/json
 - `initiator_device_id`
 - `initiator_public_key`
 
-### 2. SAS 확인 후 완료 (현재 구현됨)
+### 2. 확인 코드 참고 후 완료 (현재 구현됨)
 
 `RelayHttpClient.completePairingSession()` 호출:
 

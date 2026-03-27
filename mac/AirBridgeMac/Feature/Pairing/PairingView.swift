@@ -121,7 +121,7 @@ struct PairingView: View {
 
                     if let shortAuthenticationString = viewModel.shortAuthenticationString {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("6자리 인증 코드")
+                            Text("6자리 확인 코드 (선택)")
                                 .font(.headline)
                             Text(shortAuthenticationString)
                                 .font(.system(size: 36, weight: .semibold, design: .monospaced))

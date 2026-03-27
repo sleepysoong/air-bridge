@@ -78,7 +78,7 @@ class PairingViewModel(
                     it.copy(
                         isBusy = false,
                         pendingPairing = pending,
-                        infoMessage = "SAS 코드를 Mac 화면과 비교한 뒤 완료를 눌러 주세요.",
+                        infoMessage = "원하면 Mac 화면의 6자리 확인 코드를 참고한 뒤 완료할 수 있어요.",
                     )
                 }
             }.onFailure { error ->
@@ -106,7 +106,7 @@ class PairingViewModel(
             }.onSuccess { credentials ->
                 pendingPairingSession = null
                 container.bridgeRuntime.startForegroundService()
-                container.bridgeRuntime.ensureRunning()
+                container.bridgeRuntime.reloadStoredPairing()
                 mutableUiState.update {
                     it.copy(
                         isBusy = false,
@@ -170,4 +170,3 @@ data class PairingUiState(
     val errorMessage: String? = null,
     val infoMessage: String? = null,
 )
-

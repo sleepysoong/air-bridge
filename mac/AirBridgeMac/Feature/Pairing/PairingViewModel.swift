@@ -106,7 +106,7 @@ final class PairingViewModel: ObservableObject {
             case .ready:
                 pairingMessage = result.shortAuthenticationString == nil
                     ? "Android가 참여했어요. 인증 코드를 기다리고 있어요."
-                    : "양쪽 기기에서 6자리 코드를 비교해 주세요."
+                    : "QR로 연결 정보는 이미 전달됐어요. 필요하면 6자리 확인 코드를 비교한 뒤 완료하세요."
             case .completed:
                 pairingMessage = "Relay에서 페어링이 완료됐어요."
                 stopPolling()

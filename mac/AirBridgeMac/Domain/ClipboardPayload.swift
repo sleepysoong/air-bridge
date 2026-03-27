@@ -15,31 +15,65 @@ enum ClipboardPayloadError: LocalizedError, Equatable {
 }
 
 struct ClipboardPayload: Codable, Equatable {
-    let originDeviceID: String
-    let createdAt: Date
-    let items: [ClipboardPayloadItem]
-
-    var totalBytes: Int {
-        items.reduce(0) { $0 + $1.data.count }
-    }
-}
-
-struct ClipboardPayloadItem: Codable, Equatable, Identifiable {
+    let schemaVersion: Int
     let mimeType: String
-    let base64Value: String
+    let label: String?
+    let textValue: String?
+    let htmlValue: String?
+    let uriList: [String]
+    let binaryBase64: String?
 
-    var id: String {
-        "\(mimeType):\(base64Value.prefix(24))"
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case mimeType = "mime_type"
+        case label
+        case textValue = "text_value"
+        case htmlValue = "html_value"
+        case uriList = "uri_list"
+        case binaryBase64 = "binary_base64"
     }
 
-    var data: Data {
-        (try? Data(rawBase64Encoded: base64Value)) ?? Data()
+    init(
+        schemaVersion: Int = 1,
+        mimeType: String,
+        label: String? = nil,
+        textValue: String? = nil,
+        htmlValue: String? = nil,
+        uriList: [String] = [],
+        binaryBase64: String? = nil
+    ) {
+        self.schemaVersion = schemaVersion
+        self.mimeType = mimeType
+        self.label = label
+        self.textValue = textValue
+        self.htmlValue = htmlValue
+        self.uriList = uriList
+        self.binaryBase64 = binaryBase64
     }
 
-    static func fromData(_ data: Data, mimeType: String) -> ClipboardPayloadItem {
-        ClipboardPayloadItem(
-            mimeType: mimeType,
-            base64Value: data.rawBase64EncodedString
-        )
+    var estimatedPayloadBytes: Int {
+        if let binaryBase64 {
+            return (try? Data(rawBase64Encoded: binaryBase64).count) ?? 0
+        }
+
+        if let htmlValue {
+            return htmlValue.lengthOfBytes(using: .utf8)
+        }
+
+        if let textValue {
+            return textValue.lengthOfBytes(using: .utf8)
+        }
+
+        if !uriList.isEmpty {
+            return uriList.joined(separator: "\n").lengthOfBytes(using: .utf8)
+        }
+
+        return 0
+    }
+
+    func requireSupportedSize() throws {
+        guard estimatedPayloadBytes <= RelayLimits.maxNormalizedPayloadBytes else {
+            throw ClipboardPayloadError.payloadTooLarge
+        }
     }
 }

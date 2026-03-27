@@ -188,7 +188,7 @@ private fun PendingPairingSection(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            text = "SAS 확인",
+            text = "확인 코드 (선택)",
             color = Color.Black,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
@@ -204,10 +204,10 @@ private fun PendingPairingSection(
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Mac에 표시된 6자리 코드와 일치하는지 확인하세요.",
+            text = "QR로 이미 연결 정보는 전달됐어요. 필요하면 Mac의 6자리 코드와 비교한 뒤 완료하세요.",
             color = Color.Black,
         )
-        SolidButton(text = "코드 일치, 완료", onClick = onCompletePairing, enabled = !uiState.isBusy)
+        SolidButton(text = "페어링 완료", onClick = onCompletePairing, enabled = !uiState.isBusy)
         HorizontalDivider(color = Color.Black, modifier = Modifier.padding(top = 8.dp))
     }
 }
