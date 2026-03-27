@@ -19,13 +19,12 @@ import com.airbridge.app.app.AirBridgeApplication
 import com.airbridge.app.feature.pairing.PairingScreen
 import com.airbridge.app.feature.pairing.PairingViewModel
 import com.airbridge.app.ui.theme.AirBridgeTheme
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 
 class MainActivity : ComponentActivity() {
     private val viewModel: PairingViewModel by viewModels {
         PairingViewModel.factory((application as AirBridgeApplication).container)
     }
+    private var lastHandledPairingLink: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,9 +36,6 @@ class MainActivity : ComponentActivity() {
                 ActivityResultContracts.RequestPermission(),
             ) { granted ->
                 viewModel.updateNotificationAccess(granted || isNotificationAccessGranted())
-            }
-            val qrScannerLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-                result.contents?.let(viewModel::applyScannedQr)
             }
 
             LaunchedEffect(Unit) {
@@ -61,18 +57,17 @@ class MainActivity : ComponentActivity() {
                     },
                     onStartBridge = viewModel::startBridge,
                     onDismissBanner = viewModel::dismissBanner,
-                    onScanQr = {
-                        qrScannerLauncher.launch(
-                            ScanOptions()
-                                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                                .setPrompt("Mac 화면의 air-bridge QR 코드를 스캔하세요.")
-                                .setBeepEnabled(false)
-                                .setOrientationLocked(false),
-                        )
-                    },
                 )
             }
         }
+
+        handlePairingIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePairingIntent(intent)
     }
 
     override fun onStart() {
@@ -92,5 +87,15 @@ class MainActivity : ComponentActivity() {
 
     private fun isNotificationAccessGranted(): Boolean {
         return NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+    }
+
+    private fun handlePairingIntent(intent: Intent?) {
+        val rawLink = intent?.dataString?.trim().orEmpty()
+        if (rawLink.isEmpty() || rawLink == lastHandledPairingLink) {
+            return
+        }
+
+        lastHandledPairingLink = rawLink
+        viewModel.applyScannedQr(rawLink)
     }
 }

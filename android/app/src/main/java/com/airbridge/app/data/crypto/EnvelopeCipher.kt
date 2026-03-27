@@ -86,17 +86,16 @@ class EnvelopeCipher(
     ): ByteArray {
         val sharedSecret = sessionKeyStore.deriveSharedSecret(localPrivateKeyBase64, peerPublicKeyBase64)
         val key = deriveDirectionKey(sharedSecret, pairingSessionId, senderDeviceId, recipientDeviceId)
-        val expectedHeader = EnvelopeHeader(
-            channel = channel,
-            contentType = contentType,
-            senderDeviceId = senderDeviceId,
-            recipientDeviceId = recipientDeviceId,
-            pairingSessionId = pairingSessionId,
-        )
-        val expectedHeaderBytes = json.encodeToString(EnvelopeHeader.serializer(), expectedHeader)
-            .toByteArray(StandardCharsets.UTF_8)
+        val decodedHeader = json.decodeFromString(EnvelopeHeader.serializer(), headerAad.decodeToString())
 
-        check(headerAad.contentEquals(expectedHeaderBytes)) {
+        check(
+            decodedHeader.schemaVersion == 1 &&
+                decodedHeader.channel == channel &&
+                decodedHeader.contentType == contentType &&
+                decodedHeader.senderDeviceId == senderDeviceId &&
+                decodedHeader.recipientDeviceId == recipientDeviceId &&
+                decodedHeader.pairingSessionId == pairingSessionId,
+        ) {
             "envelope header AAD가 예상 값과 일치하지 않아요."
         }
 

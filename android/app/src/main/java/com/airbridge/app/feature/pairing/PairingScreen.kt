@@ -20,10 +20,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,9 +71,13 @@ fun PairingScreen(
     onOpenNotificationAccess: () -> Unit,
     onStartBridge: () -> Unit,
     onDismissBanner: () -> Unit,
-    onScanQr: () -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
+    PopupAlert(
+        message = uiState.errorMessage ?: uiState.infoMessage,
+        isError = uiState.errorMessage != null,
+        onDismiss = onDismissBanner,
+    )
 
     Box(
         modifier = Modifier
@@ -86,15 +93,12 @@ fun PairingScreen(
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            HeaderSection(backdrop = backdrop, uiState = uiState)
-            BannerSection(backdrop = backdrop, message = uiState.errorMessage ?: uiState.infoMessage, onDismissBanner = onDismissBanner)
             PairingInputSection(
                 backdrop = backdrop,
                 uiState = uiState,
                 onDeviceNameChanged = onDeviceNameChanged,
                 onQrPayloadChanged = onQrPayloadChanged,
                 onPreparePairing = onPreparePairing,
-                onScanQr = onScanQr,
             )
             RuntimeSection(
                 backdrop = backdrop,
@@ -158,23 +162,43 @@ private fun GlassOrb(
 }
 
 @Composable
-private fun HeaderSection(
+private fun PopupAlert(
+    message: String?,
+    isError: Boolean,
+    onDismiss: () -> Unit,
+) {
+    if (message == null) return
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(if (isError) "문제가 있어요" else "안내", color = SurfaceTextPrimary, fontWeight = FontWeight.SemiBold)
+        },
+        text = {
+            Text(message, color = SurfaceTextSecondary, lineHeight = 20.sp)
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("확인", color = AccentBlue, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        containerColor = Color(0xFFF8FBFF),
+    )
+}
+
+@Composable
+private fun PairingInputSection(
     backdrop: Backdrop,
     uiState: PairingUiState,
+    onDeviceNameChanged: (String) -> Unit,
+    onQrPayloadChanged: (String) -> Unit,
+    onPreparePairing: () -> Unit,
 ) {
     GlassPanel(backdrop = backdrop) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                text = "Air Bridge",
-                color = SurfaceTextPrimary,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "Mac과 Android를 유리처럼 부드럽고 투명한 연결 상태로 유지해요.",
-                color = SurfaceTextSecondary,
-                fontSize = 15.sp,
-                lineHeight = 21.sp,
+            SectionTitle(
+                title = "페어링",
+                subtitle = "카메라 앱으로 QR을 찍으면 자동으로 들어와요. 필요하면 링크를 직접 붙여 넣어도 돼요.",
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatusChip(
@@ -186,52 +210,6 @@ private fun HeaderSection(
                     accent = if (uiState.notificationAccessGranted) AccentBlue else AccentLavender,
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun BannerSection(
-    backdrop: Backdrop,
-    message: String?,
-    onDismissBanner: () -> Unit,
-) {
-    if (message == null) return
-
-    GlassPanel(backdrop = backdrop, accent = AccentLavender) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = message,
-                color = SurfaceTextPrimary,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-            )
-            GlassButton(
-                backdrop = backdrop,
-                text = "닫기",
-                onClick = onDismissBanner,
-                accent = AccentBlue,
-                fillWidth = false,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PairingInputSection(
-    backdrop: Backdrop,
-    uiState: PairingUiState,
-    onDeviceNameChanged: (String) -> Unit,
-    onQrPayloadChanged: (String) -> Unit,
-    onPreparePairing: () -> Unit,
-    onScanQr: () -> Unit,
-) {
-    GlassPanel(backdrop = backdrop) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionTitle(
-                title = "페어링",
-                subtitle = "Mac에서 받은 QR 정보를 붙여 넣거나 바로 스캔하면 곧바로 페어링이 완료돼요.",
-            )
             SimpleTextField(
                 value = uiState.deviceName,
                 onValueChange = onDeviceNameChanged,
@@ -245,33 +223,22 @@ private fun PairingInputSection(
                 minLines = 4,
                 singleLine = false,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GlassButton(
-                    backdrop = backdrop,
-                    text = if (uiState.isBusy) "참여 준비 중" else "참여",
-                    onClick = onPreparePairing,
-                    enabled = !uiState.isBusy,
-                    accent = AccentBlue,
-                    modifier = Modifier.weight(1f),
-                    leading = {
-                        if (uiState.isBusy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White,
-                            )
-                        }
-                    },
-                )
-                GlassButton(
-                    backdrop = backdrop,
-                    text = "QR 스캔",
-                    onClick = onScanQr,
-                    enabled = !uiState.isBusy,
-                    accent = AccentMint,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            GlassButton(
+                backdrop = backdrop,
+                text = if (uiState.isBusy) "연결 중" else "링크로 연결",
+                onClick = onPreparePairing,
+                enabled = !uiState.isBusy,
+                accent = AccentBlue,
+                leading = {
+                    if (uiState.isBusy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White,
+                        )
+                    }
+                },
+            )
         }
     }
 }

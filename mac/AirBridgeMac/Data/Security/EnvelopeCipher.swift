@@ -172,18 +172,13 @@ struct EnvelopeCipher {
             ciphertext: envelope.ciphertext
         )
 
-        let expectedHeaderAAD = try Self.pairingEnvelopeHeaderEncoder.encode(
-            PairingEnvelopeHeader(
-                schemaVersion: 1,
-                channel: envelope.channel,
-                contentType: envelope.contentType,
-                senderDeviceID: envelope.senderDeviceID,
-                recipientDeviceID: validatedExpectedRecipientDeviceID,
-                pairingSessionID: validatedPairingSessionID
-            )
-        )
-
-        guard envelope.headerAAD == expectedHeaderAAD else {
+        let decodedHeader = try JSONDecoder.airBridge.decode(PairingEnvelopeHeader.self, from: envelope.headerAAD)
+        guard decodedHeader.schemaVersion == 1,
+              decodedHeader.channel == envelope.channel,
+              decodedHeader.contentType == envelope.contentType,
+              decodedHeader.senderDeviceID == envelope.senderDeviceID,
+              decodedHeader.recipientDeviceID == validatedExpectedRecipientDeviceID,
+              decodedHeader.pairingSessionID == validatedPairingSessionID else {
             throw EnvelopeCipherError.aadMismatch
         }
 

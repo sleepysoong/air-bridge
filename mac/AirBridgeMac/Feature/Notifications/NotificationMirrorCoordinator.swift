@@ -40,12 +40,24 @@ final class NotificationMirrorCoordinator {
         _ envelope: RelayEnvelope,
         session: PairedDeviceSession
     ) async throws {
-        let payload = try envelopeCipher.decrypt(
-            NotificationPayload.self,
-            envelope: envelope,
-            expectedRecipientDeviceID: session.localDeviceID,
-            sessionKeyData: session.sessionKeyData
-        )
+        let payload: NotificationPayload
+        if !session.pairingSessionID.isEmpty {
+            payload = try envelopeCipher.decrypt(
+                NotificationPayload.self,
+                envelope: envelope,
+                pairingSessionID: session.pairingSessionID,
+                expectedRecipientDeviceID: session.localDeviceID,
+                localPrivateKeyData: session.localPrivateKeyData,
+                peerPublicKeyData: session.peerPublicKeyData
+            )
+        } else {
+            payload = try envelopeCipher.decrypt(
+                NotificationPayload.self,
+                envelope: envelope,
+                expectedRecipientDeviceID: session.localDeviceID,
+                sessionKeyData: session.sessionKeyData
+            )
+        }
 
         try await gateway.apply(payload)
         appState.lastNotificationAt = Date()

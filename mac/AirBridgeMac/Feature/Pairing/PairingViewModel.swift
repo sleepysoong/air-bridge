@@ -37,11 +37,23 @@ final class PairingViewModel: ObservableObject {
         }
 
         let payload = pairingCoordinator.qrPayload(for: activeDraft, relayAddresses: relayAddresses)
-        guard let data = try? JSONEncoder.airBridge.encode(payload) else {
+        var components = URLComponents()
+        components.scheme = "airbridge"
+        components.host = "pair"
+        components.queryItems = [
+            URLQueryItem(name: "relay_addresses", value: payload.relayAddresses.joined(separator: ",")),
+            URLQueryItem(name: "pairing_session_id", value: payload.pairingSessionID),
+            URLQueryItem(name: "pairing_secret", value: payload.pairingSecret),
+            URLQueryItem(name: "initiator_device_id", value: payload.initiatorDeviceID),
+            URLQueryItem(name: "initiator_name", value: appState.deviceName),
+            URLQueryItem(name: "initiator_public_key", value: payload.initiatorPublicKey),
+        ]
+
+        guard let deeplink = components.url?.absoluteString else {
             return nil
         }
 
-        return String(decoding: data, as: UTF8.self)
+        return deeplink
     }
 
     func startPairing() async {
