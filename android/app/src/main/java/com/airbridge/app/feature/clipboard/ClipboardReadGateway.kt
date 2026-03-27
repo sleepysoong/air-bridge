@@ -102,7 +102,7 @@ class AndroidClipboardReadGateway(
             )
         }
 
-        if (description.hasMimeType(ClipDescription.MIMETYPE_TEXT_URILIST) || clipContainsUris(clipData)) {
+        if (description.hasMimeType(ClipDescription.MIMETYPE_TEXT_URILIST) || clipContainsExternalUris(clipData)) {
             val uriList = buildList {
                 repeat(clipData.itemCount) { index ->
                     clipData.getItemAt(index).uri?.toString()?.let(::add)
@@ -150,8 +150,16 @@ class AndroidClipboardReadGateway(
         return ClipboardReadOutcome.Unsupported("지원하는 형식의 클립보드가 아니에요")
     }
 
-    private fun clipContainsUris(clipData: ClipData): Boolean {
-        return (0 until clipData.itemCount).any { index -> clipData.getItemAt(index).uri != null }
+    private fun clipContainsExternalUris(clipData: ClipData): Boolean {
+        var sawUri = false
+        repeat(clipData.itemCount) { index ->
+            val uri = clipData.getItemAt(index).uri ?: return@repeat
+            sawUri = true
+            if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
+                return false
+            }
+        }
+        return sawUri
     }
 
     private fun supportedBinaryMimeType(
@@ -169,7 +177,40 @@ class AndroidClipboardReadGateway(
         }
 
         val resolverMimeType = context.contentResolver.getType(itemUri)
-        return resolverMimeType?.takeIf(::isBinaryClipboardMimeType)
+        val supportedResolverMimeType = resolverMimeType?.takeIf(::isBinaryClipboardMimeType)
+        if (supportedResolverMimeType != null) {
+            return supportedResolverMimeType
+        }
+
+        return sniffBinaryImageMimeType(itemUri)
+    }
+
+    private fun sniffBinaryImageMimeType(uri: Uri): String? {
+        val header = ByteArray(12)
+        val bytesRead = context.contentResolver.openInputStream(uri)?.use { input ->
+            input.read(header)
+        } ?: return null
+
+        if (bytesRead >= 8 && header.copyOfRange(0, 8).contentEquals(PngSignature)) {
+            return MimeImagePng
+        }
+        if (bytesRead >= 3 && header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte() && header[2] == 0xFF.toByte()) {
+            return MimeImageJpeg
+        }
+        return null
+    }
+
+    private companion object {
+        val PngSignature = byteArrayOf(
+            0x89.toByte(),
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+        )
     }
 
     private fun readBinaryPayload(uri: Uri, mimeType: String): ByteArray {
@@ -206,4 +247,3 @@ private fun readBytesLimited(
 
     throw IOException("클립보드 URI를 열 수 없어요: $uri")
 }
-
