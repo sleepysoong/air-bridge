@@ -7,9 +7,9 @@ enum ClipboardPayloadError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedPasteboard:
-            return "The current clipboard contents do not contain a supported format."
+            return "현재 클립보드에 지원되는 형식이 없어요."
         case .payloadTooLarge:
-            return "The canonical clipboard payload exceeds the 20 MB limit."
+            return "클립보드 페이로드가 20MB 제한을 초과했어요."
         }
     }
 }

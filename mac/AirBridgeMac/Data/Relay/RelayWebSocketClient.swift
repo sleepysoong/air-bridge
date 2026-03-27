@@ -12,9 +12,9 @@ enum RelayWebSocketClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConnected:
-            return "The relay socket is not connected."
+            return "Relay 소켓이 연결되지 않았어요."
         case .unsupportedScheme:
-            return "The relay URL must use http or https."
+            return "Relay URL은 http 또는 https를 사용해야 해요."
         }
     }
 }

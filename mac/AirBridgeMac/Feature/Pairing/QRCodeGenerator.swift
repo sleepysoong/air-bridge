@@ -8,7 +8,7 @@ enum QRCodeGeneratorError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .generationFailed:
-            return "Failed to generate the pairing QR code."
+            return "페어링 QR 코드 생성에 실패했어요."
         }
     }
 }

@@ -10,13 +10,13 @@ enum EnvelopeCipherError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidCiphertext:
-            return "The encrypted envelope is invalid."
+            return "암호화된 봉투가 올바르지 않아요."
         case .aadMismatch:
-            return "The encrypted envelope metadata did not match the expected peer information."
+            return "암호화된 봉투의 메타데이터가 예상된 기기 정보와 일치하지 않아요."
         case .unsupportedEnvelopeVersion:
-            return "The encrypted envelope version is not supported."
+            return "암호화된 봉투 버전이 지원되지 않아요."
         case .invalidSessionKeyLength:
-            return "The AirBridge session key must be 32 bytes."
+            return "AirBridge 세션 키는 32바이트여야 해요."
         }
     }
 }

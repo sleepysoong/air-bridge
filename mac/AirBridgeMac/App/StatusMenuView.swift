@@ -13,18 +13,18 @@ struct StatusMenuView: View {
                 .font(.subheadline)
 
             if let peerDeviceID = appState.peerDeviceID {
-                Text("Peer: \(peerDeviceID)")
+                Text("연결된 기기: \(peerDeviceID)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if let lastClipboardSyncAt = appState.lastClipboardSyncAt {
-                Text("Clipboard: \(lastClipboardSyncAt.formatted(date: .omitted, time: .standard))")
+                Text("클립보드: \(lastClipboardSyncAt.formatted(date: .omitted, time: .standard))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Text(appState.notificationAuthorizationGranted ? "Notifications: Granted" : "Notifications: Not Granted")
+            Text(appState.notificationAuthorizationGranted ? "알림: 허용됨" : "알림: 비허용")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -37,17 +37,17 @@ struct StatusMenuView: View {
             Divider()
 
             SettingsLink {
-                Label("Open AirBridge", systemImage: "gearshape")
+                Label("AirBridge 열기", systemImage: "gearshape")
             }
 
-            Button("Reconnect Relay") {
+            Button("재연결") {
                 Task {
                     await pairingViewModel.reconnectRelay()
                 }
             }
             .disabled(!appState.isPaired)
 
-            Button("Clear Pairing") {
+            Button("페어링 해제") {
                 Task {
                     await pairingViewModel.clearPairing()
                 }

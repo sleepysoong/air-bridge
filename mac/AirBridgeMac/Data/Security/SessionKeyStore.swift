@@ -6,7 +6,7 @@ enum SessionKeyStoreError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .decodeFailed:
-            return "The stored AirBridge session could not be decoded."
+            return "저장된 AirBridge 세션을 복호화할 수 없어요."
         }
     }
 }

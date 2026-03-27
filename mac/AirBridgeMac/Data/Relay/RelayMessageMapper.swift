@@ -7,9 +7,9 @@ enum RelayMessageMapperError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidServerMessage:
-            return "The relay sent an invalid WebSocket message."
+            return "Relay가 올바르지 않은 WebSocket 메시지를 보냈어요."
         case .invalidEnvelope:
-            return "The relay sent an invalid envelope."
+            return "Relay가 올바르지 않은 봉투를 보냈어요."
         }
     }
 }

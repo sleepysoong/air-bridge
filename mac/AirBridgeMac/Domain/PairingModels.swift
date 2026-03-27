@@ -104,7 +104,7 @@ enum Base64CodingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidValue:
-            return "Base64 value is invalid."
+            return "Base64 값이 올바르지 않아요."
         }
     }
 }

@@ -9,11 +9,11 @@ enum PairingCoordinatorError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidRelayURL:
-            return "Enter a valid relay URL first."
+            return "먼저 올바른 Relay URL을 입력해야 해요."
         case .peerKeyMissing:
-            return "The Android public key is not available yet."
+            return "Android의 공개키가 아직 준비되지 않았어요."
         case .sessionNotReady:
-            return "The pairing session is not ready to complete yet."
+            return "페어링 세션이 아직 완료 준비가 되지 않았어요."
         }
     }
 }

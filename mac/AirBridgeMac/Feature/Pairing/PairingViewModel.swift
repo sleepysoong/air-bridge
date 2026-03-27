@@ -44,13 +44,13 @@ final class PairingViewModel: ObservableObject {
     func startPairing() async {
         DesktopFileLogger.log("PairingViewModel startPairing requested")
         guard !appState.isPaired else {
-            pairingMessage = "Clear the current pairing before starting a new one."
+            pairingMessage = "새 페어링을 시작하기 전에 현재 페어링을 먼저 해제해야 해요."
             DesktopFileLogger.log(errorMessage: pairingMessage ?? "unknown pairing state error", context: "PairingViewModel.startPairing")
             return
         }
 
         guard let relayURL = normalizedRelayURL else {
-            pairingMessage = "Enter a valid relay URL first."
+            pairingMessage = "먼저 올바른 relay URL을 입력해야 해요."
             DesktopFileLogger.log(errorMessage: pairingMessage ?? "invalid relay url", context: "PairingViewModel.startPairing")
             return
         }
@@ -67,7 +67,7 @@ final class PairingViewModel: ObservableObject {
             activeDraft = draft
             latestSnapshot = nil
             shortAuthenticationString = nil
-            pairingMessage = "QR is ready. Scan it from Android."
+            pairingMessage = "QR이 준비됐어요. Android에서 스캔해 주세요."
             DesktopFileLogger.log("Pairing draft created successfully")
             beginPolling()
         } catch {
@@ -92,13 +92,13 @@ final class PairingViewModel: ObservableObject {
 
             switch result.snapshot.state {
             case .pending:
-                pairingMessage = "Waiting for the Android device to join."
+                pairingMessage = "Android 기기가 참여할 때까지 기다리고 있어요."
             case .ready:
                 pairingMessage = result.shortAuthenticationString == nil
-                    ? "Android joined. Waiting for verification material."
-                    : "Compare the 6-digit code on both devices."
+                    ? "Android가 참여했어요. 인증 코드를 기다리고 있어요."
+                    : "양쪽 기기에서 6자리 코드를 비교해 주세요."
             case .completed:
-                pairingMessage = "Pairing was completed on the relay."
+                pairingMessage = "Relay에서 페어링이 완료됐어요."
                 stopPolling()
             }
             DesktopFileLogger.log("Pairing refresh completed with state \(String(describing: result.snapshot.state))")
@@ -123,7 +123,7 @@ final class PairingViewModel: ObservableObject {
                 snapshot: latestSnapshot
             )
             try await appContainer?.activatePairedSession(pairedSession)
-            pairingMessage = "Pairing completed."
+            pairingMessage = "페어링이 완료됐어요."
             DesktopFileLogger.log("Pairing completed successfully")
             stopPolling()
             self.activeDraft = nil

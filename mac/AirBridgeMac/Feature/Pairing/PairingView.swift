@@ -23,33 +23,33 @@ struct PairingView: View {
 
     private var connectionCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Relay Status")
+            Text("Relay 상태")
                 .font(.title2.bold())
 
-            LabeledContent("Connection", value: appState.connectionState.summary)
+            LabeledContent("연결", value: appState.connectionState.summary)
             LabeledContent("Relay URL", value: appState.relayBaseURLText)
-            LabeledContent("Device Name", value: appState.deviceName)
+            LabeledContent("기기 이름", value: appState.deviceName)
 
             if let peerDeviceID = appState.peerDeviceID {
-                LabeledContent("Peer Device", value: peerDeviceID)
+                LabeledContent("연결된 기기", value: peerDeviceID)
             }
 
             if let pairedSession = appState.pairedSession {
-                LabeledContent("Paired At", value: formatted(pairedSession.pairedAt))
+                LabeledContent("페어링 시각", value: formatted(pairedSession.pairedAt))
             }
 
             if let lastClipboardSyncAt = appState.lastClipboardSyncAt {
-                LabeledContent("Last Clipboard Sync", value: formatted(lastClipboardSyncAt))
+                LabeledContent("마지막 클립보드 동기화", value: formatted(lastClipboardSyncAt))
             }
 
             if let lastNotificationAt = appState.lastNotificationAt {
-                LabeledContent("Last Notification Mirror", value: formatted(lastNotificationAt))
+                LabeledContent("마지막 알림 미러링", value: formatted(lastNotificationAt))
             }
 
-            Toggle("Notification Permission Granted", isOn: .constant(appState.notificationAuthorizationGranted))
+            Toggle("알림 권한 허용됨", isOn: .constant(appState.notificationAuthorizationGranted))
                 .disabled(true)
 
-            Button("Request Notification Permission") {
+            Button("알림 권한 요청할게요") {
                 Task {
                     await viewModel.requestNotificationAuthorization()
                 }
@@ -62,43 +62,43 @@ struct PairingView: View {
 
     private var pairingCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Pairing")
+            Text("페어링")
                 .font(.title2.bold())
 
             TextField("Relay URL", text: $appState.relayBaseURLText)
                 .textFieldStyle(.roundedBorder)
 
-            TextField("Device Name", text: $appState.deviceName)
+            TextField("기기 이름", text: $appState.deviceName)
                 .textFieldStyle(.roundedBorder)
 
             HStack(spacing: 12) {
-                Button("Start Pairing") {
+                Button("페어링 시작할게요") {
                     Task {
                         await viewModel.startPairing()
                     }
                 }
                 .disabled(viewModel.isBusy || appState.isPaired)
 
-                Button("Refresh Status") {
+                Button("상태 새로고침") {
                     Task {
                         await viewModel.refreshPairing()
                     }
                 }
                 .disabled(viewModel.activeDraft == nil)
 
-                Button("Complete Pairing") {
+                Button("페어링 완료할게요") {
                     Task {
                         await viewModel.completePairing()
                     }
                 }
                 .disabled(viewModel.shortAuthenticationString == nil || viewModel.isBusy)
 
-                Button("Reset") {
+                Button("초기화") {
                     viewModel.cancelDraft()
                 }
                 .disabled(viewModel.activeDraft == nil && !appState.isPaired)
 
-                Button("Clear Saved Pairing") {
+                Button("저장된 페어링 삭제") {
                     Task {
                         await viewModel.clearPairing()
                     }
@@ -108,20 +108,20 @@ struct PairingView: View {
 
             if let activeDraft = viewModel.activeDraft {
                 VStack(alignment: .leading, spacing: 12) {
-                    LabeledContent("Session ID", value: activeDraft.pairingSessionID)
-                    LabeledContent("Expires At", value: formatted(activeDraft.expiresAt))
+                    LabeledContent("세션 ID", value: activeDraft.pairingSessionID)
+                    LabeledContent("만료 시각", value: formatted(activeDraft.expiresAt))
 
                     if let latestSnapshot = viewModel.latestSnapshot {
-                        LabeledContent("Relay State", value: latestSnapshot.state.rawValue)
+                        LabeledContent("Relay 상태", value: latestSnapshot.state.rawValue)
 
                         if let joinerName = latestSnapshot.joinerName {
-                            LabeledContent("Android Device", value: joinerName)
+                            LabeledContent("Android 기기", value: joinerName)
                         }
                     }
 
                     if let shortAuthenticationString = viewModel.shortAuthenticationString {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("6-Digit Verification")
+                            Text("6자리 인증 코드")
                                 .font(.headline)
                             Text(shortAuthenticationString)
                                 .font(.system(size: 36, weight: .semibold, design: .monospaced))
@@ -130,7 +130,7 @@ struct PairingView: View {
 
                     if let qrPayloadString = viewModel.qrPayloadString {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Pairing QR")
+                            Text("페어링 QR")
                                 .font(.headline)
 
                             QRCodeView(

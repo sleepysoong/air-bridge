@@ -21,11 +21,11 @@ enum RelayValidationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .emptyValue(let field):
-            return "\(field) must not be empty."
+            return "\(field)가 비어있으면 안 돼요."
         case .valueTooLarge(let field, let limit):
-            return "\(field) exceeds the relay limit of \(limit)."
+            return "\(field)가 Relay 제한(\(limit))을 초과했어요."
         case .invalidPublicKeyLength(let expected):
-            return "The X25519 public key must be exactly \(expected) bytes."
+            return "X25519 공개키는 정확히 \(expected)바이트여야 해요."
         }
     }
 }

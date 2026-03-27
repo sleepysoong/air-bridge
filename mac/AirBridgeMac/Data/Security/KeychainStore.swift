@@ -8,9 +8,9 @@ enum KeychainStoreError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unexpectedStatus(let status):
-            return "Keychain operation failed with status \(status)."
+            return "Keychain 작업이 실패했어요 (상태: \(status))."
         case .invalidData:
-            return "The stored keychain value is invalid."
+            return "저장된 Keychain 값이 올바르지 않아요."
         }
     }
 }

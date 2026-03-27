@@ -26,9 +26,9 @@ enum RelayHTTPClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL:
-            return "The relay base URL is invalid."
+            return "Relay URL이 올바르지 않아요."
         case .invalidResponse:
-            return "The relay returned an invalid HTTP response."
+            return "Relay가 올바르지 않은 HTTP 응답을 반환했어요."
         case .serviceError(let payload):
             return payload.message
         }

@@ -14,17 +14,17 @@ final class AppState: ObservableObject {
         var summary: String {
             switch self {
             case .idle:
-                return "Idle"
+                return "대기 중"
             case .connecting:
-                return "Connecting"
+                return "연결 중"
             case .connected:
-                return "Connected"
+                return "연결됨"
             case .reconnecting:
-                return "Reconnecting"
+                return "재연결 중"
             case .disconnected:
-                return "Disconnected"
+                return "연결 끊김"
             case .failed(let message):
-                return "Failed: \(message)"
+                return "실패: \(message)"
             }
         }
 
