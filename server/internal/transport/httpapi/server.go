@@ -96,43 +96,100 @@ func (s *Server) collectServerAddresses() []string {
 	}
 
 	var addresses []string
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		s.logger.Warn("네트워크 인터페이스 목록을 가져오지 못했어요", "error", err)
-		return addresses
-	}
-
-	for _, iface := range interfaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-
-		addrs, err := iface.Addrs()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		interfaces, err := net.Interfaces()
 		if err != nil {
-			continue
+			s.logger.Warn("네트워크 인터페이스 목록을 가져오지 못했어요", "error", err)
+			return
 		}
 
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-
-			if ip == nil || ip.IsLoopback() {
+		for _, iface := range interfaces {
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 				continue
 			}
 
-			if ip4 := ip.To4(); ip4 != nil {
-				addresses = append(addresses, fmt.Sprintf("http://%s:%s", ip4.String(), port))
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+
+			for _, addr := range addrs {
+				var ip net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				case *net.IPAddr:
+					ip = v.IP
+				}
+
+				if ip == nil || ip.IsLoopback() {
+					continue
+				}
+
+				if ip4 := ip.To4(); ip4 != nil {
+					mu.Lock()
+					addresses = append(addresses, fmt.Sprintf("http://%s:%s", ip4.String(), port))
+					mu.Unlock()
+				}
 			}
 		}
-	}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		publicIP := s.fetchPublicIP()
+		if publicIP != "" {
+			mu.Lock()
+			addresses = append(addresses, fmt.Sprintf("http://%s:%s", publicIP, port))
+			mu.Unlock()
+		}
+	}()
+
+	wg.Wait()
 
 	return addresses
+}
+
+func (s *Server) fetchPublicIP() string {
+	client := http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	resp, err := client.Get("https://api.ipify.org")
+	if err != nil {
+		s.logger.Warn("외부 IP를 가져오지 못했어요 (api.ipify.org)", "error", err)
+		resp, err = client.Get("https://ifconfig.me/ip")
+		if err != nil {
+			s.logger.Warn("외부 IP를 가져오지 못했어요 (ifconfig.me)", "error", err)
+			return ""
+		}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Warn("외부 IP 조회 응답 상태 코드가 올바르지 않아요", "status", resp.StatusCode)
+		return ""
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.Warn("외부 IP 조회 응답 본문을 읽지 못했어요", "error", err)
+		return ""
+	}
+
+	ip := strings.TrimSpace(string(body))
+	if net.ParseIP(ip) == nil {
+		s.logger.Warn("가져온 외부 IP의 형식이 올바르지 않아요", "ip", ip)
+		return ""
+	}
+
+	return ip
 }
 
 type createPairingSessionRequest struct {
