@@ -16,7 +16,7 @@ final class AppContainer {
 
     init(appState: AppState) {
         self.appState = appState
-        DesktopFileLogger.shared.log("AppContainer init started")
+        DesktopFileLogger.log("AppContainer init started")
 
         let keychainStore = KeychainStore()
         let sessionKeyStore = SessionKeyStore(keychainStore: keychainStore)
@@ -39,7 +39,7 @@ final class AppContainer {
         self.clipboardSyncCoordinator = clipboardSyncCoordinator
         self.notificationMirrorCoordinator = notificationMirrorCoordinator
         self.pairingCoordinator = PairingCoordinator { RelayHTTPClient(baseURL: $0) }
-        DesktopFileLogger.shared.log("AppContainer init completed")
+        DesktopFileLogger.log("AppContainer init completed")
 
         clipboardSyncCoordinator.configureSendEnvelope { [weak self] channel, contentType, nonce, headerAAD, ciphertext in
             guard let self else { return }
@@ -63,41 +63,41 @@ final class AppContainer {
 
     func startIfNeeded() async {
         guard !didStart else {
-            DesktopFileLogger.shared.log("AppContainer startIfNeeded skipped because already started")
+            DesktopFileLogger.log("AppContainer startIfNeeded skipped because already started")
             return
         }
 
         didStart = true
-        DesktopFileLogger.shared.log("AppContainer startIfNeeded started")
+        DesktopFileLogger.log("AppContainer startIfNeeded started")
         NSApplication.shared.setActivationPolicy(.accessory)
 
         do {
             let granted = try await notificationMirrorCoordinator.refreshAuthorizationStatus()
             appState.notificationAuthorizationGranted = granted
-            DesktopFileLogger.shared.log("Notification authorization refreshed: \(granted)")
+            DesktopFileLogger.log("Notification authorization refreshed: \(granted)")
         } catch {
             appState.setLatestError(error)
         }
 
         do {
             if let storedSession = try sessionKeyStore.loadPairedSession() {
-                DesktopFileLogger.shared.log("Stored paired session found, starting clipboard sync and relay connect")
+                DesktopFileLogger.log("Stored paired session found, starting clipboard sync and relay connect")
                 appState.pairedSession = storedSession
                 appState.peerDeviceID = storedSession.peerDeviceID
                 clipboardSyncCoordinator.start(session: storedSession)
                 await connectRelay(using: storedSession, reconnecting: false)
             } else {
-                DesktopFileLogger.shared.log("No stored paired session found")
+                DesktopFileLogger.log("No stored paired session found")
             }
         } catch {
             appState.setLatestError(error)
         }
 
-        DesktopFileLogger.shared.log("AppContainer startIfNeeded finished")
+        DesktopFileLogger.log("AppContainer startIfNeeded finished")
     }
 
     func activatePairedSession(_ session: PairedDeviceSession) async throws {
-        DesktopFileLogger.shared.log("Activating paired session")
+        DesktopFileLogger.log("Activating paired session")
         reconnectTask?.cancel()
         try sessionKeyStore.savePairedSession(session)
 
@@ -111,7 +111,7 @@ final class AppContainer {
     }
 
     func clearPairing() async {
-        DesktopFileLogger.shared.log("Clearing pairing state")
+        DesktopFileLogger.log("Clearing pairing state")
         reconnectTask?.cancel()
         relayWebSocketClient.disconnect()
         clipboardSyncCoordinator.stop()
@@ -130,11 +130,11 @@ final class AppContainer {
 
     func reconnectRelay() async {
         guard let pairedSession = appState.pairedSession else {
-            DesktopFileLogger.shared.log("Reconnect requested without paired session")
+            DesktopFileLogger.log("Reconnect requested without paired session")
             return
         }
 
-        DesktopFileLogger.shared.log("Reconnect requested for relay")
+        DesktopFileLogger.log("Reconnect requested for relay")
         await connectRelay(using: pairedSession, reconnecting: true)
     }
 
@@ -142,7 +142,7 @@ final class AppContainer {
         reconnectTask?.cancel()
         relayWebSocketClient.disconnect()
         appState.connectionState = reconnecting ? .reconnecting : .connecting
-        DesktopFileLogger.shared.log("Relay connect started. reconnecting=\(reconnecting)")
+        DesktopFileLogger.log("Relay connect started. reconnecting=\(reconnecting)")
 
         do {
             try await relayWebSocketClient.connect(
@@ -153,7 +153,7 @@ final class AppContainer {
                 guard let self else { return }
                 await self.handleRelayEvent(event, session: session)
             }
-            DesktopFileLogger.shared.log("Relay connect call completed")
+            DesktopFileLogger.log("Relay connect call completed")
         } catch {
             appState.connectionState = .failed(error.localizedDescription)
             appState.setLatestError(error)
@@ -163,7 +163,7 @@ final class AppContainer {
 
     private func handleRelayEvent(_ event: RelayWebSocketEvent, session: PairedDeviceSession) async {
         guard appState.pairedSession?.localDeviceID == session.localDeviceID else {
-            DesktopFileLogger.shared.log("Ignored relay event for stale session")
+            DesktopFileLogger.log("Ignored relay event for stale session")
             return
         }
 
@@ -171,23 +171,23 @@ final class AppContainer {
         case .message(let message):
             switch message {
             case .connected(_, let peerDeviceID):
-                DesktopFileLogger.shared.log("Relay connected event received")
+                DesktopFileLogger.log("Relay connected event received")
                 appState.connectionState = .connected
                 appState.peerDeviceID = peerDeviceID
                 appState.setLatestError(nil)
             case .pong:
-                DesktopFileLogger.shared.log("Relay pong received")
+                DesktopFileLogger.log("Relay pong received")
                 break
             case .error(let code, let message):
-                DesktopFileLogger.shared.log(errorMessage: "\(code): \(message)", context: "RelayEvent")
+                DesktopFileLogger.log(errorMessage: "\(code): \(message)", context: "RelayEvent")
                 appState.connectionState = .failed(message)
                 appState.setLatestError("\(code): \(message)")
             case .envelope(let envelope):
-                DesktopFileLogger.shared.log("Relay envelope received for channel \(String(describing: envelope.channel))")
+                DesktopFileLogger.log("Relay envelope received for channel \(String(describing: envelope.channel))")
                 await handleIncomingEnvelope(envelope, session: session)
             }
         case .disconnected(let error):
-            DesktopFileLogger.shared.log(errorMessage: error?.localizedDescription ?? "socket disconnected without error", context: "RelayDisconnect")
+            DesktopFileLogger.log(errorMessage: error?.localizedDescription ?? "socket disconnected without error", context: "RelayDisconnect")
             if let error {
                 appState.connectionState = .failed(error.localizedDescription)
                 appState.setLatestError(error)
@@ -203,15 +203,15 @@ final class AppContainer {
         do {
             switch envelope.channel {
             case .clipboard:
-                DesktopFileLogger.shared.log("Handling incoming clipboard envelope")
+                DesktopFileLogger.log("Handling incoming clipboard envelope")
                 try await clipboardSyncCoordinator.handleIncomingEnvelope(envelope, session: session)
             case .notification:
-                DesktopFileLogger.shared.log("Handling incoming notification envelope")
+                DesktopFileLogger.log("Handling incoming notification envelope")
                 try await notificationMirrorCoordinator.handleIncomingEnvelope(envelope, session: session)
             }
 
             try await relayWebSocketClient.send(.acknowledgeEnvelope(envelopeID: envelope.id))
-            DesktopFileLogger.shared.log("Acknowledged incoming envelope")
+            DesktopFileLogger.log("Acknowledged incoming envelope")
         } catch {
             appState.setLatestError(error)
         }
@@ -242,7 +242,7 @@ final class AppContainer {
 
     private func scheduleReconnect(for session: PairedDeviceSession) {
         reconnectTask?.cancel()
-        DesktopFileLogger.shared.log("Scheduling relay reconnect in 3 seconds")
+        DesktopFileLogger.log("Scheduling relay reconnect in 3 seconds")
         reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
 

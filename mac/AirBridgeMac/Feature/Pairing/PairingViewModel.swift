@@ -42,16 +42,16 @@ final class PairingViewModel: ObservableObject {
     }
 
     func startPairing() async {
-        DesktopFileLogger.shared.log("PairingViewModel startPairing requested")
+        DesktopFileLogger.log("PairingViewModel startPairing requested")
         guard !appState.isPaired else {
             pairingMessage = "Clear the current pairing before starting a new one."
-            DesktopFileLogger.shared.log(errorMessage: pairingMessage ?? "unknown pairing state error", context: "PairingViewModel.startPairing")
+            DesktopFileLogger.log(errorMessage: pairingMessage ?? "unknown pairing state error", context: "PairingViewModel.startPairing")
             return
         }
 
         guard let relayURL = normalizedRelayURL else {
             pairingMessage = "Enter a valid relay URL first."
-            DesktopFileLogger.shared.log(errorMessage: pairingMessage ?? "invalid relay url", context: "PairingViewModel.startPairing")
+            DesktopFileLogger.log(errorMessage: pairingMessage ?? "invalid relay url", context: "PairingViewModel.startPairing")
             return
         }
 
@@ -68,7 +68,7 @@ final class PairingViewModel: ObservableObject {
             latestSnapshot = nil
             shortAuthenticationString = nil
             pairingMessage = "QR is ready. Scan it from Android."
-            DesktopFileLogger.shared.log("Pairing draft created successfully")
+            DesktopFileLogger.log("Pairing draft created successfully")
             beginPolling()
         } catch {
             pairingMessage = error.localizedDescription
@@ -83,7 +83,7 @@ final class PairingViewModel: ObservableObject {
             return
         }
 
-        DesktopFileLogger.shared.log("PairingViewModel refreshPairing requested")
+        DesktopFileLogger.log("PairingViewModel refreshPairing requested")
 
         do {
             let result = try await pairingCoordinator.lookupPairing(for: activeDraft)
@@ -101,7 +101,7 @@ final class PairingViewModel: ObservableObject {
                 pairingMessage = "Pairing was completed on the relay."
                 stopPolling()
             }
-            DesktopFileLogger.shared.log("Pairing refresh completed with state \(String(describing: result.snapshot.state))")
+            DesktopFileLogger.log("Pairing refresh completed with state \(String(describing: result.snapshot.state))")
         } catch {
             pairingMessage = error.localizedDescription
             appState.setLatestError(error)
@@ -113,7 +113,7 @@ final class PairingViewModel: ObservableObject {
             return
         }
 
-        DesktopFileLogger.shared.log("PairingViewModel completePairing requested")
+        DesktopFileLogger.log("PairingViewModel completePairing requested")
 
         isBusy = true
 
@@ -124,7 +124,7 @@ final class PairingViewModel: ObservableObject {
             )
             try await appContainer?.activatePairedSession(pairedSession)
             pairingMessage = "Pairing completed."
-            DesktopFileLogger.shared.log("Pairing completed successfully")
+            DesktopFileLogger.log("Pairing completed successfully")
             stopPolling()
             self.activeDraft = nil
             self.latestSnapshot = nil

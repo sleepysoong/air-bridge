@@ -4,43 +4,37 @@ import Foundation
 private func airBridgeUncaughtExceptionHandler(_ exception: NSException) {
     let reason = exception.reason ?? "Unknown reason"
     let callStack = exception.callStackSymbols.joined(separator: " | ")
-    DesktopFileLogger.shared.log(
+    DesktopFileLogger.log(
         "UNCAUGHT EXCEPTION [\(exception.name.rawValue)] \(reason) | stack=\(callStack)",
         level: .error
     )
 }
 
-final class DesktopFileLogger {
+enum DesktopFileLogger {
     enum Level: String {
         case info = "INFO"
         case error = "ERROR"
     }
 
-    static let shared = DesktopFileLogger()
-
-    private let queue = DispatchQueue(label: "com.airbridge.desktop-file-logger")
-    private let fileURL: URL
-    private var observerTokens: [NSObjectProtocol] = []
-    private var didInstallRuntimeLogging = false
-    private let timestampFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    private init(fileManager: FileManager = .default) {
+    private static let queue = DispatchQueue(label: "com.airbridge.desktop-file-logger")
+    private static let fileURL: URL = {
+        let fileManager = FileManager.default
         let desktopURL = fileManager.urls(for: .desktopDirectory, in: .userDomainMask).first
         let homeURL = fileManager.homeDirectoryForCurrentUser
-        fileURL = (desktopURL ?? homeURL).appendingPathComponent("air-bridge.log")
+        let fileURL = (desktopURL ?? homeURL).appendingPathComponent("air-bridge.log")
 
         queue.sync {
             if !fileManager.fileExists(atPath: fileURL.path) {
                 fileManager.createFile(atPath: fileURL.path, contents: nil)
             }
         }
-    }
+        return fileURL
+    }()
+    @MainActor private static var observerTokens: [NSObjectProtocol] = []
+    @MainActor private static var didInstallRuntimeLogging = false
 
-    func installRuntimeLogging() {
+    @MainActor
+    static func installRuntimeLogging() {
         guard !didInstallRuntimeLogging else {
             return
         }
@@ -55,40 +49,43 @@ final class DesktopFileLogger {
                 object: nil,
                 queue: .main
             ) { _ in
-                DesktopFileLogger.shared.log("Application did finish launching")
+                DesktopFileLogger.log("Application did finish launching")
             },
             notificationCenter.addObserver(
                 forName: NSApplication.didBecomeActiveNotification,
                 object: nil,
                 queue: .main
             ) { _ in
-                DesktopFileLogger.shared.log("Application did become active")
+                DesktopFileLogger.log("Application did become active")
             },
             notificationCenter.addObserver(
                 forName: NSApplication.didResignActiveNotification,
                 object: nil,
                 queue: .main
             ) { _ in
-                DesktopFileLogger.shared.log("Application did resign active")
+                DesktopFileLogger.log("Application did resign active")
             },
             notificationCenter.addObserver(
                 forName: NSApplication.willTerminateNotification,
                 object: nil,
                 queue: .main
             ) { _ in
-                DesktopFileLogger.shared.log("Application will terminate")
+                DesktopFileLogger.log("Application will terminate")
             }
         ]
 
         log("Runtime logging installed")
     }
 
-    func log(_ message: String, level: Level = .info) {
-        let line = "[\(timestampFormatter.string(from: Date()))] [\(level.rawValue)] \(message)\n"
+    static func log(_ message: String, level: Level = .info) {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let line = "[\(formatter.string(from: Date()))] [\(level.rawValue)] \(message)\n"
+        let fileURL = self.fileURL
         queue.async {
             do {
                 let data = Data(line.utf8)
-                let handle = try FileHandle(forWritingTo: self.fileURL)
+                let handle = try FileHandle(forWritingTo: fileURL)
                 defer { try? handle.close() }
                 try handle.seekToEnd()
                 try handle.write(contentsOf: data)
@@ -97,11 +94,11 @@ final class DesktopFileLogger {
         }
     }
 
-    func log(error: Error, context: String) {
+    static func log(error: Error, context: String) {
         log("[\(context)] \(error.localizedDescription)", level: .error)
     }
 
-    func log(errorMessage: String, context: String) {
+    static func log(errorMessage: String, context: String) {
         log("[\(context)] \(errorMessage)", level: .error)
     }
 }

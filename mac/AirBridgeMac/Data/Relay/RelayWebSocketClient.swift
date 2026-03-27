@@ -38,7 +38,7 @@ final class RelayWebSocketClient {
         relayToken: String,
         onEvent: @escaping @MainActor (RelayWebSocketEvent) async -> Void
     ) async throws {
-        DesktopFileLogger.shared.log("RelayWebSocketClient connect requested")
+        DesktopFileLogger.log("RelayWebSocketClient connect requested")
         disconnect()
         isIntentionalDisconnect = false
 
@@ -51,7 +51,7 @@ final class RelayWebSocketClient {
         let task = session.webSocketTask(with: requestURL)
         socketTask = task
         task.resume()
-        DesktopFileLogger.shared.log("RelayWebSocketClient socket resumed")
+        DesktopFileLogger.log("RelayWebSocketClient socket resumed")
 
         receiveTask = Task { [weak self] in
             guard let self else { return }
@@ -64,21 +64,21 @@ final class RelayWebSocketClient {
 
                     let incomingMessage = try await activeTask.receive()
                     guard case .string(let text) = incomingMessage else {
-                        DesktopFileLogger.shared.log("RelayWebSocketClient ignored non-string message")
+                        DesktopFileLogger.log("RelayWebSocketClient ignored non-string message")
                         continue
                     }
 
                     let decodedMessage = try self.messageMapper.decode(text)
-                    DesktopFileLogger.shared.log("RelayWebSocketClient decoded incoming message")
+                    DesktopFileLogger.log("RelayWebSocketClient decoded incoming message")
                     await onEvent(.message(decodedMessage))
                 }
             } catch {
                 if Task.isCancelled || self.isIntentionalDisconnect {
-                    DesktopFileLogger.shared.log("RelayWebSocketClient receive loop cancelled intentionally")
+                    DesktopFileLogger.log("RelayWebSocketClient receive loop cancelled intentionally")
                     return
                 }
 
-                DesktopFileLogger.shared.log(error: error, context: "RelayWebSocketClient.receiveLoop")
+                DesktopFileLogger.log(error: error, context: "RelayWebSocketClient.receiveLoop")
                 await onEvent(.disconnected(error))
             }
         }
@@ -100,11 +100,11 @@ final class RelayWebSocketClient {
 
         let text = try messageMapper.encode(message)
         try await task.send(.string(text))
-        DesktopFileLogger.shared.log("RelayWebSocketClient sent outgoing message")
+        DesktopFileLogger.log("RelayWebSocketClient sent outgoing message")
     }
 
     func disconnect() {
-        DesktopFileLogger.shared.log("RelayWebSocketClient disconnect requested")
+        DesktopFileLogger.log("RelayWebSocketClient disconnect requested")
         isIntentionalDisconnect = true
         receiveTask?.cancel()
         pingTask?.cancel()
