@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -17,6 +19,8 @@ type Config struct {
 }
 
 func Load() (Config, error) {
+	_ = godotenv.Load()
+
 	cfg := Config{
 		HTTPAddress:           getString("AIR_BRIDGE_HTTP_ADDRESS", ":8080"),
 		DatabasePath:          getString("AIR_BRIDGE_DATABASE_PATH", "./data/airbridge-relay.db"),
