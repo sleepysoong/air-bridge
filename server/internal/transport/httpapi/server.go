@@ -81,13 +81,13 @@ type serverInfoResponse struct {
 }
 
 func (s *Server) handleServerInfo(w http.ResponseWriter, _ *http.Request) {
-	addresses := s.collectServerAddresses()
+	addresses := s.CollectServerAddresses()
 	writeJSON(w, http.StatusOK, serverInfoResponse{
 		Addresses: addresses,
 	})
 }
 
-func (s *Server) collectServerAddresses() []string {
+func (s *Server) CollectServerAddresses() []string {
 	port := s.config.HTTPAddress
 	if strings.HasPrefix(port, ":") {
 		port = port[1:]

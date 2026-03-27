@@ -96,6 +96,13 @@ func main() {
 		cfg.CleanupInterval.String(),
 	)
 
+	go func() {
+		addresses := server.CollectServerAddresses()
+		for _, addr := range addresses {
+			logger.Info("Mac 앱의 Relay URL로 아래 주소 중 하나를 입력해 주세요", "url", addr)
+		}
+	}()
+
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("중계 서버 요청을 처리하지 못했어요", "error", err)
 		os.Exit(1)
