@@ -170,18 +170,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist/mac/previous dist/mac/unpacked dist/mac
-          if gh release download "v${{ needs.prepare.outputs.previous_version }}" --pattern "air-bridge_v${{ needs.prepare.outputs.previous_version }}.app.zip" --dir dist/mac/previous; then
-            ditto -x -k "dist/mac/previous/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app.zip" dist/mac/unpacked
-            if [ -d "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app" ]; then
-              mv "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app" "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
-            elif [ -d "dist/mac/unpacked/AirBridgeMac.app" ]; then
-              mv "dist/mac/unpacked/AirBridgeMac.app" "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
+          mkdir -p dist/previous dist/unpacked dist
+          if gh release download "v${{ needs.prepare.outputs.previous_version }}" --pattern "air-bridge_v${{ needs.prepare.outputs.previous_version }}.app.zip" --dir dist/previous; then
+            ditto -x -k "dist/previous/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app.zip" dist/unpacked
+            if [ -d "dist/unpacked/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app" ]; then
+              mv "dist/unpacked/air-bridge_v${{ needs.prepare.outputs.previous_version }}.app" "dist/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
+            elif [ -d "dist/unpacked/AirBridgeMac.app" ]; then
+              mv "dist/unpacked/AirBridgeMac.app" "dist/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app"
             else
               echo "이전 macOS asset 안에서 .app 번들을 찾지 못했어요"
               exit 1
             fi
-            ditto -c -k --sequesterRsrc --keepParent "dist/mac/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app" "dist/mac/air-bridge_v${{ needs.prepare.outputs.next_version }}.app.zip"
+            ditto -c -k --sequesterRsrc --keepParent "dist/unpacked/air-bridge_v${{ needs.prepare.outputs.next_version }}.app" "dist/air-bridge_v${{ needs.prepare.outputs.next_version }}.app.zip"
             echo "reused=true" >> "$GITHUB_OUTPUT"
           else
             echo "reused=false" >> "$GITHUB_OUTPUT"
