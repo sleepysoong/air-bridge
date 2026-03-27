@@ -18,11 +18,11 @@ final class NotificationMirrorCoordinator {
         self.envelopeCipher = envelopeCipher
     }
 
-    func requestAuthorization() async throws -> Bool {
+    nonisolated func requestAuthorization() async throws -> Bool {
         try await gateway.requestAuthorization()
     }
 
-    func refreshAuthorizationStatus() async throws -> Bool {
+    nonisolated func refreshAuthorizationStatus() async throws -> Bool {
         let status = await gateway.currentAuthorizationStatus()
         switch status {
         case .notDetermined:

@@ -83,7 +83,7 @@ enum DesktopFileLogger {
         let line = "[\(formatter.string(from: Date()))] [\(level.rawValue)] \(message)\n"
         let fileURL = self.fileURL
         
-        let writeBlock = {
+        let writeBlock: @Sendable () -> Void = {
             do {
                 let data = Data(line.utf8)
                 let handle = try FileHandle(forWritingTo: fileURL)
