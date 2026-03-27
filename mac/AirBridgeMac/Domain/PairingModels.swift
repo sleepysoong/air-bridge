@@ -29,14 +29,14 @@ struct PairingDraft: Equatable {
 }
 
 struct PairingQRCodePayload: Codable, Equatable {
-    let relayURL: URL
+    let relayBaseURL: URL
     let pairingSessionID: String
     let pairingSecret: String
     let initiatorDeviceID: String
     let initiatorPublicKey: String
 
     enum CodingKeys: String, CodingKey {
-        case relayURL = "relay_url"
+        case relayBaseURL = "relay_base_url"
         case pairingSessionID = "pairing_session_id"
         case pairingSecret = "pairing_secret"
         case initiatorDeviceID = "initiator_device_id"

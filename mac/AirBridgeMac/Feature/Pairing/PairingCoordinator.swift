@@ -52,7 +52,7 @@ final class PairingCoordinator {
 
     func qrPayload(for draft: PairingDraft) -> PairingQRCodePayload {
         PairingQRCodePayload(
-            relayURL: draft.relayBaseURL,
+            relayBaseURL: draft.relayBaseURL,
             pairingSessionID: draft.pairingSessionID,
             pairingSecret: draft.pairingSecret,
             initiatorDeviceID: draft.localDeviceID,
