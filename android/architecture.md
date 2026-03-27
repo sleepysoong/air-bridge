@@ -6,13 +6,17 @@
 
 Android 앱은 주요 기능이 이미 구현되어 있어요:
 - Jetpack Compose 기반 UI
-- QR 스캔 페어링 플로우
+- QR 및 deeplink 기반 페어링 플로우
+- paired-first Android 화면과 조건부 복구 액션
 - X25519 키 합의 + HKDF + AES-256-GCM 암호화
 - Relay HTTP/WebSocket 클라이언트
 - Foreground Service 기반 브리지 런타임
 - NotificationListenerService 알림 수집
+- 알림 메타데이터와 best-effort 이미지 자산 암호화 전송
 - 전경 클립보드 모니터링 (1.5초 폴링)
+- Shizuku 기반 백그라운드 클립보드 읽기 fallback
 - Mac→Android 클립보드 자동 적용
+- Android→Mac 이미지 클립보드 전송 보강
 - 클립보드 루프 방지
 - 서버 입력 제한 클라이언트 검증
 - QR 파싱, 암호화, Relay 매핑, 클립보드 동기화 단위 테스트
@@ -28,8 +32,9 @@ Android 앱은 주요 기능이 이미 구현되어 있어요:
 ## 플랫폼 제약
 
 - Android 10 이상에서는 일반 앱이 백그라운드에서 클립보드를 읽을 수 없어요
-- 그래서 `Android -> Mac` 자동 동기화는 앱이 전경에 있을 때만 허용해야 해요
-- 백그라운드 상황에서는 사용자가 수동으로 "지금 클립보드 보내기"를 눌러야 해요
+- 그래서 기본 동작에서 `Android -> Mac` 자동 동기화는 앱이 전경에 있을 때만 허용해야 해요
+- 다만 Shizuku가 실행 중이고 권한까지 허용된 경우에는 shell 권한 경로를 통해 백그라운드 읽기를 보강해요
+- Shizuku를 쓸 수 없는 상황에서는 사용자가 수동으로 "지금 클립보드 보내기"를 눌러야 해요
 - Android 12 이상에서는 클립보드 접근 시 시스템 토스트가 보일 수 있어요. 이건 운영체제 정책으로 받아들여야 해요
 
 ## 실제 패키지 구조
@@ -106,7 +111,7 @@ android/
 
 ### `feature/pairing`
 
-- `PairingScreen`: Compose UI, 페어링 상태 표시
+- `PairingScreen`: Compose UI, paired-first 상태 표시, 조건부 권한 복구 액션
 - `PairingViewModel`: 페어링 플로우 상태 관리
 - `PairingRepository`: Relay HTTP API 호출 (join, lookup)
 - `PairingQrParser`: QR JSON/URI 파싱
@@ -114,7 +119,9 @@ android/
 ### `feature/clipboard`
 
 - `ClipboardSyncCoordinator`: 전경 자동 모니터링 + 수동 전송 조율, 루프 방지 (`lastAppliedFingerprint`, `lastSentFingerprint`)
-- `AndroidClipboardReadGateway`: Android 클립보드 읽기, MIME 타입 정규화
+- `AndroidClipboardReadGateway`: Android 클립보드 읽기, MIME 타입 정규화, content URI 기반 이미지 판별 보강
+- `ShizukuClipboardReadGateway`: Shizuku user service를 통한 백그라운드 클립보드 읽기
+- `DualClipboardReadGateway`: Shizuku 가능 여부에 따라 elevated 경로와 기본 경로를 선택
 - `AndroidClipboardApplyGateway`: Mac→Android 클립보드 적용, ContentProvider 기반 바이너리 캐시
 - `ClipboardFormats`: 지원 MIME 타입 상수
 
@@ -122,7 +129,7 @@ android/
 
 - `AirBridgeNotificationListenerService`: Android NotificationListenerService 구현
 - `NotificationForwarder`: posted/updated/removed 이벤트 전달
-- `NotificationPayloadNormalizer`: 알림 정규화
+- `NotificationPayloadNormalizer`: 알림 정규화, 앱 이름/채널/이미지 자산 추출
 - `NotificationNoiseFilter`: self/service 알림 필터링
 
 ### `feature/service`
@@ -170,12 +177,14 @@ android/
 
 ### 클립보드 플로우 (Android → Mac)
 
-1. `MainActivity.onStart()` → `ClipboardSyncCoordinator.startForegroundMonitoring()`
+1. `MainActivity`와 `BridgeRuntime`가 상황에 맞는 클립보드 감시를 시작해요
 2. 1.5초마다 `ClipboardReadGateway.readCurrentClipboard()`
 3. Fingerprint 계산, `lastSentFingerprint`/`lastAppliedFingerprint`와 비교
 4. 새 클립보드면 `BridgeRuntime.publishClipboard()`
 5. `EnvelopeCipher.encrypt()` → content_type/nonce/header_aad/ciphertext 검증
 6. `RelayWebSocketClient.sendEnvelope()` → Relay 전송
+
+Shizuku가 허용된 경우에는 `DualClipboardReadGateway`가 `ShizukuClipboardReadGateway`를 우선 사용해서 백그라운드 읽기를 시도해요.
 
 ### 클립보드 플로우 (Mac → Android)
 
@@ -189,7 +198,7 @@ android/
 
 1. `AirBridgeNotificationListenerService.onNotificationPosted()`
 2. `NotificationNoiseFilter` → self/service 필터링
-3. `NotificationPayloadNormalizer` → 정규화
+3. `NotificationPayloadNormalizer` → 텍스트, 앱 정보, 채널, best-effort 이미지 자산 정규화
 4. `NotificationForwarder.publishNotification()`
 5. `BridgeRuntime` → 암호화 → Relay 전송
 
@@ -283,13 +292,14 @@ GET /api/v1/ws?device_id=dev_xxx&relay_token=rt_xxx
 ## 알려진 제한사항 및 다음 작업
 
 ### 현재 미구현:
-- 실제 Gradle/디바이스 환경 빌드 검증
+- 실제 디바이스 E2E 검증 고도화
 - instrumentation 테스트
 - heartbeat/ping 루프 (코드 있지만 미사용)
 - ack 재시도 정책
 - 송신 큐 영속화 (연결 끊김 시 메시지 유실 가능)
 - 부팅 후 자동 복구 (BOOT_COMPLETED receiver 없음)
 - NotificationListener 연결 해제 처리
+- 알림 이미지 자산 품질 튜닝
 
 ### 버그 수정 완료:
 - ✅ 클립보드 루프 방지 (Mac→Android 적용 후 재전송 방지)

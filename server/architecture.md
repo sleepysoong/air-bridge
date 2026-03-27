@@ -18,6 +18,7 @@ relay 서버가 하지 말아야 할 일도 분명해요.
 - 평문 clipboard payload를 읽으면 안 돼요.
 - 평문 notification payload를 읽으면 안 돼요.
 - 클립보드 포맷을 해석하거나 변환하면 안 돼요.
+- Android 알림의 앱 이름, 앱 아이콘, 첨부 이미지 같은 richer payload도 평문으로 해석하면 안 돼요.
 - 앱별 도메인 로직을 서버 쪽에 두면 안 돼요.
 
 ## 현재 패키지 구조와 책임
@@ -103,6 +104,8 @@ server/
 4. 서버는 envelope를 SQLite에 저장한 뒤, 수신 측이 연결돼 있으면 즉시 push해야 해요.
 5. 수신 측 클라이언트는 처리 완료 뒤 `ack_envelope`를 보내야 해요.
 6. 서버는 ack를 받으면 해당 envelope를 delivered 상태로 바꿔야 해요.
+
+이때 notification 채널 안에 richer JSON이 들어 있더라도 서버는 내용을 몰라야 해요. `content_type`이 `application/json`이든 `application/vnd.airbridge.notification+json`이든 서버는 크기와 pairing 관계만 검증해야 해요.
 
 ## HTTP API 상세
 
@@ -321,4 +324,5 @@ GET /api/v1/ws?device_id=dev_xxx&relay_token=rt_xxx
 - transport 계층에서 도메인 규칙을 너무 많이 가지면 안 돼요.
 - SQLite는 지금 시작점으로 적절하지만, 동시성 요구가 커지면 저장소 계층 분리가 더 필요해요.
 - 서버는 payload 의미를 몰라야 하므로 content validation은 envelope 외곽 메타데이터까지만 해야 해요.
+- Android와 macOS가 notification payload 필드를 더 늘리더라도 서버는 blind relay 원칙을 깨면 안 돼요.
 - Android와 macOS가 공통으로 쓰는 envelope 계약이 바뀌면 반드시 이 문서와 `project.md`를 같이 수정해야 해요.

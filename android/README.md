@@ -6,14 +6,18 @@
 
 Android 앱은 이미 주요 기능이 구현되어 있어요:
 - ✅ Jetpack Compose UI
-- ✅ QR 기반 즉시 페어링
+- ✅ QR 및 deeplink 기반 즉시 페어링
+- ✅ paired-first Android 화면과 단순화된 권한 복구 UI
 - ✅ X25519/HKDF-SHA256/AES-256-GCM 종단간 암호화
 - ✅ 안전한 키 저장소 (Android Keystore 기반 암호화)
 - ✅ Relay HTTP/WebSocket 클라이언트
 - ✅ NotificationListenerService를 통한 알림 수집
+- ✅ 알림 메타데이터와 best-effort 이미지 자산 암호화 전송
 - ✅ Foreground Service 기반 브리지 런타임
 - ✅ 전경 클립보드 모니터링 (1.5초 폴링)
+- ✅ Shizuku 기반 백그라운드 클립보드 읽기 fallback
 - ✅ Mac→Android 클립보드 자동 적용
+- ✅ Android→Mac 이미지 클립보드 전송 보강
 - ✅ 클립보드 루프 방지 로직
 - ✅ 서버 입력 제한 클라이언트 검증
 
@@ -22,7 +26,8 @@ Android 앱은 이미 주요 기능이 구현되어 있어요:
 Android 앱은 아래 책임을 맡아요:
 - Mac과의 페어링을 QR 스캔으로 참여하고 완료해요
 - Android 알림을 수집해서 암호화한 뒤 relay 서버로 보내요
-- Android 클립보드를 전경에서만 안전하게 수집해요
+- Android 앱 아이콘, large icon, big picture 같은 알림 자산도 가능한 범위 안에서 같이 암호화해요
+- Android 클립보드를 운영체제 제약 안에서 안전하게 수집해요
 - Mac에서 온 클립보드 payload를 Android 클립보드에 반영해요
 - 키와 relay 인증 정보를 안전한 저장소에 보관해요
 
@@ -35,7 +40,8 @@ Android 앱은 아래 책임을 맡아요:
 ## Android에서 꼭 기억해야 할 결정
 
 - 백그라운드 상시 클립보드 감시는 v1 범위에서 불가능해요
-- 따라서 `Android -> Mac` 방향은 전경 감시(1.5초 폴링) 또는 수동 전송이어요
+- 따라서 기본 동작에서 `Android -> Mac` 방향은 전경 감시(1.5초 폴링) 또는 수동 전송이에요
+- Shizuku가 실행 중이고 권한까지 허용된 경우에는 shell 권한 경로를 통해 백그라운드 읽기를 보강해요
 - Android 알림은 `NotificationListenerService`로 수집해요
 - 지원 클립보드 포맷은 공통 교집합 포맷만 다뤄요
 - payload는 기기에서 암호화한 뒤 relay로 보내요
@@ -51,7 +57,7 @@ Android 앱은 아래 책임을 맡아요:
    - root 환경이 있으면 root로 시작해도 돼요.
    - root가 없으면 **무선 디버깅 + ADB** 또는 USB ADB로 시작해야 해요.
 3. Shizuku가 실행 중인 상태에서 `air-bridge` 앱을 열어야 해요.
-4. 앱의 설정 탭에서 **Shizuku 권한을 허용해요** 버튼을 눌러 권한을 승인해야 해요.
+4. 앱의 메인 화면에서 필요할 때 보이는 **Shizuku 권한을 열게요** 버튼으로 권한을 승인해야 해요.
 5. 상태 영역에서 아래 항목을 확인해야 해요.
    - `Shizuku`: 준비됐어요
    - `브리지 상태`: 연결됐어요 또는 실행 중이에요
@@ -95,7 +101,7 @@ android/
 
 ## 다음 작업
 
-- Gradle/디바이스 환경에서 실제 빌드와 테스트 검증
-- heartbeat/재시도 정책 구현
-- 부팅 후 자동 복구 구현
-- NotificationListener 연결 해제 처리
+- 실제 디바이스 E2E 검증을 더 촘촘히 해야 해요.
+- heartbeat/재시도 정책을 보강해야 해요.
+- 부팅 후 자동 복구를 구현해야 해요.
+- NotificationListener 연결 해제 처리와 알림 자산 품질 검증을 더 다듬어야 해요.

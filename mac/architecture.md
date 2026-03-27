@@ -11,6 +11,7 @@
 - Keychain에 relay token과 암호화 관련 정보를 저장해야 해요.
 - `NSPasteboard`를 감시해서 지원 포맷의 클립보드를 canonical payload로 만들고 relay로 보내야 해요.
 - Android 알림 이벤트를 받아서 macOS 로컬 알림으로 보여줘야 해요.
+- 가능하면 Android에서 보낸 이미지 자산을 로컬 알림 첨부로 붙여야 해요.
 - Android에서 온 클립보드 payload를 macOS pasteboard에 안전하게 적용해야 해요.
 
 ## 현재 구조
@@ -63,6 +64,7 @@ mac/
 - 앱 수명 주기와 메뉴바 상태를 관리해야 해요.
 - 연결 상태, 마지막 동기화 시각, 권한 상태를 한곳에서 보여줘야 해요.
 - relay URL과 device name 같은 편집 가능한 값은 재실행 뒤에도 유지돼야 해요.
+- 패키지에 포함된 구름 아트워크를 macOS 앱 아이콘 이미지로 사용할 수 있어야 해요.
 
 ### Pairing 계층
 
@@ -81,7 +83,9 @@ mac/
 
 - Android에서 들어온 `posted`, `updated`, `removed` 이벤트를 받아야 해요.
 - `UNUserNotificationCenter`에 로컬 알림으로 등록하거나 제거해야 해요.
-- Android의 `remote_identifier`와 macOS 알림 identifier 사이 매핑을 유지해야 해요.
+- Android의 `notification_id`와 macOS 알림 identifier 사이 매핑을 유지해야 해요.
+- 이미지 자산이 있으면 `UNNotificationAttachment`로 best-effort 표시를 시도해야 해요.
+- 다만 macOS 시스템 알림은 원본 Android 앱 아이콘으로 위장할 수 없고, Air Bridge 알림 안에서 앱 이름과 첨부 이미지로만 비슷하게 보여줄 수 있어요.
 
 ### Security 계층
 
@@ -150,7 +154,7 @@ macOS 네트워크 계층은 아래 상한을 미리 알고 있어야 해요.
 - `nonce`는 최대 `64`바이트예요.
 - `header_aad`는 최대 `16 KiB`예요.
 - `ciphertext`는 최대 `20 MiB + 16 bytes`예요.
-- WebSocket 클라이언트 메시지는 최대 `36 MiB`예요.
+- WebSocket 클라이언트 메시지는 서버 상한에 맞춰 최대 `28 MiB` 안에 있어야 해요.
 
 이 상한을 넘는 값은 relay로 보내기 전에 macOS 쪽에서 먼저 막아야 해요.
 
@@ -164,5 +168,6 @@ macOS 네트워크 계층은 아래 상한을 미리 알고 있어야 해요.
 
 - 메뉴바 앱은 눈에 덜 띄어도 되지만 연결 상태는 명확해야 해요.
 - 로컬 pasteboard 쓰기와 원격 수신을 구분하지 않으면 무한 반사 루프가 생겨요.
-- macOS 알림과 Android 알림의 생명주기를 맞추기 위해 remote identifier를 일관되게 유지해야 해요.
+- macOS 알림과 Android 알림의 생명주기를 맞추기 위해 `notification_id`를 일관되게 유지해야 해요.
+- Android 알림 이미지가 있어도 macOS에서는 첨부 이미지로만 보일 수 있다는 제약을 항상 고려해야 해요.
 - UI보다 먼저 송수신 안정성과 상태 관리부터 단단하게 만들어야 해요.
