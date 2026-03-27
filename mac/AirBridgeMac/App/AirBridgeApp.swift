@@ -8,12 +8,15 @@ struct AirBridgeApp: App {
     private let appContainer: AppContainer
 
     init() {
+        DesktopFileLogger.shared.installRuntimeLogging()
+        DesktopFileLogger.shared.log("AirBridge app init started")
         let state = AppState()
         let container = AppContainer(appState: state)
 
         _appState = StateObject(wrappedValue: state)
         _pairingViewModel = StateObject(wrappedValue: container.makePairingViewModel())
         appContainer = container
+        DesktopFileLogger.shared.log("AirBridge app init completed")
     }
 
     var body: some Scene {
@@ -23,6 +26,7 @@ struct AirBridgeApp: App {
                 pairingViewModel: pairingViewModel
             )
             .task {
+                DesktopFileLogger.shared.log("MenuBarExtra task started")
                 await appContainer.startIfNeeded()
             }
         }
@@ -35,6 +39,7 @@ struct AirBridgeApp: App {
             )
             .frame(minWidth: 560, minHeight: 720)
             .task {
+                DesktopFileLogger.shared.log("Settings task started")
                 await appContainer.startIfNeeded()
             }
         }

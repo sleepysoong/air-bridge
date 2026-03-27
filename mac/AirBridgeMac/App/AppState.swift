@@ -80,10 +80,14 @@ final class AppState: ObservableObject {
 
     func setLatestError(_ message: String?) {
         latestError = message
+        if let message {
+            DesktopFileLogger.shared.log(errorMessage: message, context: "AppState")
+        }
     }
 
     func setLatestError(_ error: Error) {
         latestError = error.localizedDescription
+        DesktopFileLogger.shared.log(error: error, context: "AppState")
     }
 
     func persistEditablePreferences() {
