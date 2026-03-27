@@ -35,6 +35,7 @@ class PairingQrParser(
                 queryParameters["relay_base_url"],
                 queryParameters["relay_url"],
                 queryParameters["relayBaseUrl"],
+                queryParameters["relayAddresses"],
             ).filter { it.isNotBlank() }
         val pairingSessionId = queryParameters["pairing_session_id"]
             ?: queryParameters["session_id"]

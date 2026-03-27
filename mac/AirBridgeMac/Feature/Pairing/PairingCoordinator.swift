@@ -68,10 +68,12 @@ final class PairingCoordinator {
         )
 
         let verificationCode: String?
-        if let peerPublicKeyData = snapshot.joinerPublicKey {
+        if let peerPublicKeyData = snapshot.joinerPublicKey, let joinerDeviceID = snapshot.joinerDeviceID {
             verificationCode = try makeShortAuthenticationString(
+                pairingSessionID: draft.pairingSessionID,
+                initiatorDeviceID: draft.localDeviceID,
+                joinerDeviceID: joinerDeviceID,
                 localPrivateKeyData: draft.localPrivateKeyData,
-                localPublicKeyData: draft.localPublicKeyData,
                 peerPublicKeyData: peerPublicKeyData
             )
         } else {
@@ -143,21 +145,22 @@ final class PairingCoordinator {
     }
 
     private func makeShortAuthenticationString(
+        pairingSessionID: String,
+        initiatorDeviceID: String,
+        joinerDeviceID: String,
         localPrivateKeyData: Data,
-        localPublicKeyData: Data,
         peerPublicKeyData: Data
     ) throws -> String {
         let sharedSecret = try deriveSharedSecret(
             localPrivateKeyData: localPrivateKeyData,
             peerPublicKeyData: peerPublicKeyData
         )
-        let orderedPublicKeys = [localPublicKeyData, peerPublicKeyData].sorted {
-            $0.lexicographicallyPrecedes($1)
-        }
-        let info = Data("air-bridge-sas-v1".utf8) + orderedPublicKeys[0] + orderedPublicKeys[1]
+        let infoString = "air-bridge|sas|\(initiatorDeviceID)|\(joinerDeviceID)|v1"
+        let info = Data(infoString.utf8)
+        let salt = Data(pairingSessionID.utf8)
         let verificationKey = sharedSecret.hkdfDerivedSymmetricKey(
             using: SHA256.self,
-            salt: Data(),
+            salt: salt,
             sharedInfo: info,
             outputByteCount: 4
         )

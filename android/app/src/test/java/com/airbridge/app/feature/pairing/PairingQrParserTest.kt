@@ -13,7 +13,7 @@ class PairingQrParserTest {
         val json = """
             {
                 "version": 1,
-                "relay_base_url": "https://relay.example.com",
+                "relay_addresses": ["https://relay.example.com"],
                 "pairing_session_id": "session123",
                 "pairing_secret": "secret456",
                 "initiator_device_id": "device789",
@@ -24,7 +24,7 @@ class PairingQrParserTest {
 
         val result = parser.parse(json)
 
-        assertEquals("https://relay.example.com", result.relayBaseUrl)
+        assertEquals("https://relay.example.com", result.relayAddresses.first())
         assertEquals("session123", result.pairingSessionId)
         assertEquals("secret456", result.pairingSecret)
         assertEquals("device789", result.initiatorDeviceId)
@@ -43,7 +43,7 @@ class PairingQrParserTest {
 
         val result = parser.parse(uri)
 
-        assertEquals("https://relay.example.com", result.relayBaseUrl)
+        assertEquals("https://relay.example.com", result.relayAddresses.first())
         assertEquals("session123", result.pairingSessionId)
         assertEquals("secret456", result.pairingSecret)
         assertEquals("device789", result.initiatorDeviceId)
@@ -53,7 +53,7 @@ class PairingQrParserTest {
 
     @Test
     fun `URI 형식 QR 파싱 - camelCase 필드명 fallback`() {
-        val uri = "airbridge://pair?relayBaseUrl=https://relay.example.com" +
+        val uri = "airbridge://pair?relayAddresses=https://relay.example.com" +
                 "&pairingSessionId=session123" +
                 "&pairingSecret=secret456" +
                 "&initiatorDeviceId=device789" +
@@ -62,7 +62,7 @@ class PairingQrParserTest {
 
         val result = parser.parse(uri)
 
-        assertEquals("https://relay.example.com", result.relayBaseUrl)
+        assertEquals("https://relay.example.com", result.relayAddresses.first())
         assertEquals("session123", result.pairingSessionId)
         assertEquals("secret456", result.pairingSecret)
         assertEquals("device789", result.initiatorDeviceId)
@@ -79,7 +79,7 @@ class PairingQrParserTest {
 
         val result = parser.parse(uri)
 
-        assertEquals("https://relay.example.com", result.relayBaseUrl)
+        assertEquals("https://relay.example.com", result.relayAddresses.first())
         assertEquals("session123", result.pairingSessionId)
         assertEquals("secret456", result.pairingSecret)
         assertEquals("pubkey_base64", result.initiatorPublicKey)
@@ -118,7 +118,7 @@ class PairingQrParserTest {
     fun `pairing_session_id 누락시 거부`() {
         val json = """
             {
-                "relay_base_url": "https://relay.example.com",
+                "relay_addresses": ["https://relay.example.com"],
                 "pairing_secret": "secret456",
                 "initiator_public_key": "pubkey_base64"
             }
@@ -133,7 +133,7 @@ class PairingQrParserTest {
     fun `pairing_secret 누락시 거부`() {
         val json = """
             {
-                "relay_base_url": "https://relay.example.com",
+                "relay_addresses": ["https://relay.example.com"],
                 "pairing_session_id": "session123",
                 "initiator_public_key": "pubkey_base64"
             }
@@ -148,7 +148,7 @@ class PairingQrParserTest {
     fun `initiator_public_key 누락시 거부`() {
         val json = """
             {
-                "relay_base_url": "https://relay.example.com",
+                "relay_addresses": ["https://relay.example.com"],
                 "pairing_session_id": "session123",
                 "pairing_secret": "secret456"
             }
@@ -163,7 +163,7 @@ class PairingQrParserTest {
     fun `선택 필드는 null 허용`() {
         val json = """
             {
-                "relay_base_url": "https://relay.example.com",
+                "relay_addresses": ["https://relay.example.com"],
                 "pairing_session_id": "session123",
                 "pairing_secret": "secret456",
                 "initiator_public_key": "pubkey_base64"
@@ -180,7 +180,7 @@ class PairingQrParserTest {
     fun `알 수 없는 JSON 필드는 무시`() {
         val json = """
             {
-                "relay_base_url": "https://relay.example.com",
+                "relay_addresses": ["https://relay.example.com"],
                 "pairing_session_id": "session123",
                 "pairing_secret": "secret456",
                 "initiator_public_key": "pubkey_base64",
@@ -191,7 +191,7 @@ class PairingQrParserTest {
 
         val result = parser.parse(json)
 
-        assertEquals("https://relay.example.com", result.relayBaseUrl)
+        assertEquals("https://relay.example.com", result.relayAddresses.first())
         assertEquals("session123", result.pairingSessionId)
     }
 }
