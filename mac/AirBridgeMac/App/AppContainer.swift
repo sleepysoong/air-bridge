@@ -58,7 +58,7 @@ final class AppContainer {
             appState: appState,
             appContainer: self,
             pairingCoordinator: pairingCoordinator,
-            clientFactory: makeRelayHTTPClient
+            clientFactory: { RelayHTTPClient(baseURL: $0) }
         )
     }
 

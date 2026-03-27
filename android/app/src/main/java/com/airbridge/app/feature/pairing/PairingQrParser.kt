@@ -18,7 +18,7 @@ class PairingQrParser(
         } else {
             parseUri(trimmed)
         }.also { payload ->
-            require(payload.relayBaseUrl.isNotBlank()) { "relay_base_url 값이 필요해요." }
+            require(payload.relayAddresses.isNotEmpty()) { "relay_addresses 값이 필요해요." }
             require(payload.pairingSessionId.isNotBlank()) { "pairing_session_id 값이 필요해요." }
             require(payload.pairingSecret.isNotBlank()) { "pairing_secret 값이 필요해요." }
             require(payload.initiatorPublicKey.isNotBlank()) { "initiator_public_key 값이 필요해요." }
@@ -27,10 +27,15 @@ class PairingQrParser(
 
     private fun parseUri(rawValue: String): PairingQrPayload {
         val queryParameters = parseQueryParameters(rawValue)
-        val relayBaseUrl = queryParameters["relay_base_url"]
-            ?: queryParameters["relay_url"]
-            ?: queryParameters["relayBaseUrl"]
-            ?: ""
+        val relayAddresses = queryParameters["relay_addresses"]
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?: listOfNotNull(
+                queryParameters["relay_base_url"],
+                queryParameters["relay_url"],
+                queryParameters["relayBaseUrl"],
+            ).filter { it.isNotBlank() }
         val pairingSessionId = queryParameters["pairing_session_id"]
             ?: queryParameters["session_id"]
             ?: queryParameters["pairingSessionId"]
@@ -44,7 +49,7 @@ class PairingQrParser(
             ?: ""
 
         return PairingQrPayload(
-            relayBaseUrl = relayBaseUrl,
+            relayAddresses = relayAddresses,
             pairingSessionId = pairingSessionId,
             pairingSecret = pairingSecret,
             initiatorDeviceId = queryParameters["initiator_device_id"]
