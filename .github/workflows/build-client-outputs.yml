@@ -211,6 +211,7 @@ jobs:
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
           cp "mac/.build/release/AirBridgeMac" "$APP/Contents/MacOS/AirBridgeMac"
+          cp "mac/AirBridgeMac/Resources/AppArtwork.png" "$APP/Contents/Resources/AppArtwork.png"
           chmod +x "$APP/Contents/MacOS/AirBridgeMac"
 
           cat > "$APP/Contents/Info.plist" <<EOF
@@ -224,6 +225,8 @@ jobs:
             <string>com.airbridge.mac</string>
             <key>CFBundleName</key>
             <string>AirBridgeMac</string>
+            <key>CFBundleIconFile</key>
+            <string>AppArtwork.png</string>
             <key>CFBundlePackageType</key>
             <string>APPL</string>
             <key>CFBundleShortVersionString</key>

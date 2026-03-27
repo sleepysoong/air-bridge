@@ -17,9 +17,6 @@ let package = Package(
         .executableTarget(
             name: "AirBridgeMac",
             path: "AirBridgeMac",
-            resources: [
-                .process("Resources")
-            ],
             linkerSettings: [
                 .unsafeFlags([
                     "-Xlinker", "-sectcreate",
