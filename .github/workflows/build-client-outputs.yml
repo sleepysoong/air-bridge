@@ -22,6 +22,7 @@ jobs:
       android: ${{ steps.filter.outputs.android }}
       mac: ${{ steps.filter.outputs.mac }}
       app_version: ${{ steps.version.outputs.app_version }}
+      version_code: ${{ steps.version.outputs.version_code }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,11 +37,18 @@ jobs:
             mac:
               - 'mac/**'
 
-      - name: Read shared app version
+      - name: Bump shared app version
         id: version
         run: |
-          APP_VERSION=$(grep 'versionName = "' android/app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          CURRENT_VERSION=$(grep 'versionName = "' android/app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
+          CURRENT_VERSION_CODE=$(grep 'versionCode = ' android/app/build.gradle.kts | sed -E 's/.*versionCode = ([0-9]+).*/\1/')
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          NEXT_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          NEXT_VERSION_CODE=$((CURRENT_VERSION_CODE + 1))
+
+          echo "app_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$NEXT_VERSION_CODE" >> "$GITHUB_OUTPUT"
 
   build-android:
     needs: changes
@@ -68,6 +76,19 @@ jobs:
 
       - name: Prepare local properties
         run: printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > android/local.properties
+
+      - name: Apply bumped Android version
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("android/app/build.gradle.kts")
+          text = path.read_text()
+          text = re.sub(r'versionCode = \d+', 'versionCode = ${{ needs.changes.outputs.version_code }}', text, count=1)
+          text = re.sub(r'versionName = "[^"]+"', 'versionName = "${{ needs.changes.outputs.app_version }}"', text, count=1)
+          path.write_text(text)
+          PY
 
       - name: Build installable APK
         run: ./gradlew assembleDebug
@@ -124,7 +145,7 @@ jobs:
             <key>CFBundleShortVersionString</key>
             <string>${{ needs.changes.outputs.app_version }}</string>
             <key>CFBundleVersion</key>
-            <string>${GITHUB_RUN_NUMBER}</string>
+            <string>${{ needs.changes.outputs.version_code }}</string>
             <key>LSMinimumSystemVersion</key>
             <string>14.0</string>
             <key>NSHighResolutionCapable</key>
@@ -180,15 +201,28 @@ jobs:
           name: mac-output
           path: outputs/mac
 
+      - name: Persist bumped shared app version
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("android/app/build.gradle.kts")
+          text = path.read_text()
+          text = re.sub(r'versionCode = \d+', 'versionCode = ${{ needs.changes.outputs.version_code }}', text, count=1)
+          text = re.sub(r'versionName = "[^"]+"', 'versionName = "${{ needs.changes.outputs.app_version }}"', text, count=1)
+          path.write_text(text)
+          PY
+
       - name: Commit generated outputs
         run: |
-          if [ -z "$(git status --porcelain -- outputs)" ]; then
+          if [ -z "$(git status --porcelain -- outputs android/app/build.gradle.kts)" ]; then
             echo "No output changes to commit"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add outputs
-          git commit -m "build: update client outputs [skip ci]"
+          git add outputs android/app/build.gradle.kts
+          git commit -m "build: bump app version to v${{ needs.changes.outputs.app_version }} [skip ci]"
           git push origin HEAD:${GITHUB_REF_NAME}

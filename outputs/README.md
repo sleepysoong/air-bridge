@@ -10,4 +10,5 @@
 - `android/` 변경이 감지되면 installable debug APK를 만들어요.
 - `mac/` 변경이 감지되면 `AirBridgeMac.app`을 zip으로 묶어서 만들어요.
 - 한 커밋에 둘 다 바뀌면 둘 다 빌드하고 한 번에 커밋해요.
+- workflow가 실행될 때마다 공유 앱 버전을 `0.0.1`씩 올리고 Android `versionCode`도 `1`씩 올려요.
 - `outputs/`만 바뀐 후속 커밋은 다시 빌드를 트리거하지 않아요.
