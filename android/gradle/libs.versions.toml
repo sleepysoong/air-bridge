@@ -1,17 +1,18 @@
 [versions]
 agp = "8.8.0"
-kotlin = "2.0.21"
+kotlin = "2.3.10"
 coreKtx = "1.15.0"
 activityCompose = "1.10.1"
 appcompat = "1.7.0"
 lifecycle = "2.8.7"
-composeBom = "2024.12.01"
+composeBom = "2026.03.00"
 coroutines = "1.9.0"
 serialization = "1.7.3"
 okhttp = "4.12.0"
 bcprov = "1.78.1"
 zxing = "4.3.0"
 junit4 = "4.13.2"
+backdrop = "2.0.0-alpha03"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -36,6 +37,7 @@ bcprov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "b
 zxing-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxing" }
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
