@@ -1,7 +1,7 @@
 import Foundation
 import UserNotifications
 
-final class LocalNotificationGateway {
+final class LocalNotificationGateway: Sendable {
     init() {}
 
     func currentAuthorizationStatus() async -> UNAuthorizationStatus {
