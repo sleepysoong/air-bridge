@@ -19,12 +19,19 @@ import com.airbridge.app.app.AirBridgeApplication
 import com.airbridge.app.feature.pairing.PairingScreen
 import com.airbridge.app.feature.pairing.PairingViewModel
 import com.airbridge.app.ui.theme.AirBridgeTheme
+import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
     private val viewModel: PairingViewModel by viewModels {
         PairingViewModel.factory((application as AirBridgeApplication).container)
     }
     private var lastHandledPairingLink: String? = null
+
+    private val shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+        if (requestCode == 1001) {
+            viewModel.updateShizukuStatus()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 viewModel.updateNotificationAccess(isNotificationAccessGranted())
+                viewModel.updateShizukuStatus()
             }
 
             AirBridgeTheme {
@@ -49,6 +57,7 @@ class MainActivity : ComponentActivity() {
                     onQrPayloadChanged = viewModel::updateQrPayload,
                     onPreparePairing = viewModel::preparePairing,
                     onManualClipboardSend = viewModel::sendClipboardNow,
+                    onRequestShizukuPermission = viewModel::requestShizukuPermission,
                     onOpenNotificationAccess = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             notificationAccessLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -72,17 +81,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        viewModel.startClipboardMonitoring()
+        Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
     }
 
     override fun onStop() {
-        viewModel.stopClipboardMonitoring()
+        Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
         super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
         viewModel.updateNotificationAccess(isNotificationAccessGranted())
+        viewModel.updateShizukuStatus()
     }
 
     private fun isNotificationAccessGranted(): Boolean {

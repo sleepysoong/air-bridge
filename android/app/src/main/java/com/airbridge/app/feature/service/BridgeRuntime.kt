@@ -76,6 +76,7 @@ class BridgeRuntime(
 
     override fun onForegroundServiceStarted(service: Service) {
         ensureRunning()
+        clipboardSyncCoordinator.startForegroundMonitoring()
         mutableSnapshot.value = mutableSnapshot.value.copy(
             isServiceRunning = true,
             status = "브리지 서비스를 시작했어요",
@@ -83,6 +84,7 @@ class BridgeRuntime(
     }
 
     override fun onForegroundServiceStopped() {
+        clipboardSyncCoordinator.stopForegroundMonitoring()
         scope.launch {
             resetRuntime(
                 keepServiceRunning = false,

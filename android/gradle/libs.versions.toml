@@ -13,6 +13,7 @@ bcprov = "1.78.1"
 zxing = "4.3.0"
 junit4 = "4.13.2"
 backdrop = "2.0.0-alpha03"
+shizuku = "13.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,6 +39,8 @@ zxing-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", v
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

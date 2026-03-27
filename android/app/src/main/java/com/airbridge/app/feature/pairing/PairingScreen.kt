@@ -1,38 +1,22 @@
 package com.airbridge.app.feature.pairing
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -46,20 +30,20 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
 
-private val ScreenBackgroundTop = Color(0xFFEFF6FF)
-private val ScreenBackgroundBottom = Color(0xFFF9FBFF)
-private val AccentBlue = Color(0xFF5A8CFF)
-private val AccentMint = Color(0xFF7DE7D4)
-private val AccentLavender = Color(0xFFA99BFF)
-private val SurfaceTextPrimary = Color(0xFF132033)
-private val SurfaceTextSecondary = Color(0xFF5D6A80)
-private val GlassBorder = Color.White.copy(alpha = 0.62f)
-private val GlassSurface = Color.White.copy(alpha = 0.28f)
-private val GlassSurfaceStrong = Color.White.copy(alpha = 0.42f)
-private val CardShape = RoundedCornerShape(28.dp)
-private val FieldShape = RoundedCornerShape(22.dp)
-private val ButtonShape = RoundedCornerShape(999.dp)
+private val AppleBackground = Color(0xFFF2F2F7)
+private val AppleSurface = Color(0xFFFFFFFF)
+private val AppleTextPrimary = Color(0xFF000000)
+private val AppleTextSecondary = Color(0xFF8A8A8E)
+private val AppleBlue = Color(0xFF007AFF)
+private val AppleDivider = Color(0xFFC6C6C8)
+
+private val IosCardShape = RoundedCornerShape(12.dp)
 
 @Composable
 fun PairingScreen(
@@ -71,8 +55,11 @@ fun PairingScreen(
     onOpenNotificationAccess: () -> Unit,
     onStartBridge: () -> Unit,
     onDismissBanner: () -> Unit,
+    onRequestShizukuPermission: () -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
+    var selectedTab by remember { mutableIntStateOf(0) }
+
     PopupAlert(
         message = uiState.errorMessage ?: uiState.infoMessage,
         isError = uiState.errorMessage != null,
@@ -82,83 +69,320 @@ fun PairingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ScreenBackgroundBottom),
+            .background(AppleBackground)
     ) {
-        LiquidGlassBackground(backdrop = backdrop)
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .layerBackdrop(backdrop)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .padding(bottom = 120.dp), // padding for bottom bar
         ) {
-            PairingInputSection(
-                backdrop = backdrop,
-                uiState = uiState,
-                onDeviceNameChanged = onDeviceNameChanged,
-                onQrPayloadChanged = onQrPayloadChanged,
-                onPreparePairing = onPreparePairing,
-            )
-            RuntimeSection(
-                backdrop = backdrop,
-                uiState = uiState,
-                onOpenNotificationAccess = onOpenNotificationAccess,
-                onManualClipboardSend = onManualClipboardSend,
-                onStartBridge = onStartBridge,
-            )
+            if (selectedTab == 0) {
+                // Home/Pairing Tab
+                ScreenHeader(title = "Pairing")
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    IosSection(title = "DEVICE INFORMATION") {
+                        IosTextFieldRow(
+                            label = "Device Name",
+                            value = uiState.deviceName,
+                            onValueChange = onDeviceNameChanged,
+                            isLast = false
+                        )
+                        IosTextFieldRow(
+                            label = "QR / URL",
+                            value = uiState.qrPayload,
+                            onValueChange = onQrPayloadChanged,
+                            isLast = true
+                        )
+                    }
+
+                    IosButton(
+                        text = if (uiState.isBusy) "Connecting..." else "Connect via Link",
+                        onClick = onPreparePairing,
+                        enabled = !uiState.isBusy,
+                        isLoading = uiState.isBusy
+                    )
+                }
+            } else {
+                // Settings/Runtime Tab
+                ScreenHeader(title = "Settings")
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    IosSection(title = "STATUS") {
+                        IosMetricRow(label = "Bridge Status", value = uiState.runtimeSnapshot.status, isLast = false)
+                        IosMetricRow(label = "Clipboard", value = if (uiState.clipboardStatus.isMonitoring) "Monitoring" else "Stopped", isLast = false)
+                        IosMetricRow(
+                            label = "Notification", 
+                            value = if (uiState.notificationAccessGranted) "Granted" else "Required", 
+                            isError = !uiState.notificationAccessGranted,
+                            isLast = !uiState.shizukuAvailable
+                        )
+                        if (uiState.shizukuAvailable) {
+                            IosMetricRow(
+                                label = "Shizuku", 
+                                value = if (uiState.shizukuPermissionGranted) "Granted" else "Required", 
+                                isError = !uiState.shizukuPermissionGranted,
+                                isLast = true
+                            )
+                        }
+                    }
+
+                    IosSection(title = "ACTIONS") {
+                        IosActionRow(
+                            label = "Start Bridge",
+                            onClick = onStartBridge,
+                            enabled = uiState.activeCredentials != null,
+                            isLast = false
+                        )
+                        IosActionRow(
+                            label = "Send Clipboard",
+                            onClick = onManualClipboardSend,
+                            enabled = uiState.activeCredentials != null,
+                            isLast = false
+                        )
+                        IosActionRow(
+                            label = "Notification Settings",
+                            onClick = onOpenNotificationAccess,
+                            isLast = !uiState.shizukuAvailable || uiState.shizukuPermissionGranted
+                        )
+                        if (uiState.shizukuAvailable && !uiState.shizukuPermissionGranted) {
+                            IosActionRow(
+                                label = "Request Shizuku",
+                                onClick = onRequestShizukuPermission,
+                                isLast = true
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Floating Bottom Bar with Liquid Glass
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp, start = 32.dp, end = 32.dp)
+                .height(64.dp)
+                .fillMaxWidth()
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { CircleShape },
+                    effects = {
+                        vibrancy()
+                        blur(16.dp.toPx())
+                        lens(16.dp.toPx(), 32.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.White.copy(alpha = 0.6f))
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TabItem(
+                    icon = Icons.Default.Home,
+                    label = "Pairing",
+                    isSelected = selectedTab == 0,
+                    onClick = { selectedTab = 0 }
+                )
+                TabItem(
+                    icon = Icons.Default.Settings,
+                    label = "Settings",
+                    isSelected = selectedTab == 1,
+                    onClick = { selectedTab = 1 }
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun LiquidGlassBackground(backdrop: LayerBackdrop) {
-    Box(
+private fun TabItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val color = if (isSelected) AppleBlue else AppleTextSecondary
+    Column(
         modifier = Modifier
-            .fillMaxSize()
-            .layerBackdrop(backdrop)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(ScreenBackgroundTop, ScreenBackgroundBottom),
-                ),
-            ),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        GlassOrb(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 8.dp, top = 48.dp),
-            size = 220.dp,
-            colors = listOf(AccentMint.copy(alpha = 0.55f), Color.Transparent),
-        )
-        GlassOrb(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 12.dp, top = 12.dp),
-            size = 240.dp,
-            colors = listOf(AccentBlue.copy(alpha = 0.42f), Color.Transparent),
-        )
-        GlassOrb(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 32.dp, bottom = 96.dp),
-            size = 180.dp,
-            colors = listOf(AccentLavender.copy(alpha = 0.34f), Color.Transparent),
-        )
+        Icon(imageVector = icon, contentDescription = label, tint = color, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(text = label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
-private fun GlassOrb(
-    modifier: Modifier,
-    size: androidx.compose.ui.unit.Dp,
-    colors: List<Color>,
-) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(Brush.radialGradient(colors = colors)),
+private fun ScreenHeader(title: String) {
+    Text(
+        text = title,
+        color = AppleTextPrimary,
+        fontSize = 32.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 16.dp, top = 48.dp, bottom = 16.dp)
     )
+}
+
+@Composable
+private fun IosSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column {
+        Text(
+            text = title,
+            color = AppleTextSecondary,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(IosCardShape)
+                .background(AppleSurface)
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun IosTextFieldRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    isLast: Boolean
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                color = AppleTextPrimary,
+                fontSize = 16.sp,
+                modifier = Modifier.width(100.dp)
+            )
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedTextColor = AppleTextSecondary,
+                    unfocusedTextColor = AppleTextSecondary,
+                    cursorColor = AppleBlue,
+                ),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+            )
+        }
+        if (!isLast) {
+            HorizontalDivider(color = AppleDivider.copy(alpha = 0.5f), modifier = Modifier.padding(start = 16.dp))
+        }
+    }
+}
+
+@Composable
+private fun IosMetricRow(label: String, value: String, isError: Boolean = false, isLast: Boolean) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = label, color = AppleTextPrimary, fontSize = 16.sp)
+            Text(
+                text = value,
+                color = if (isError) Color(0xFFFF3B30) else AppleTextSecondary,
+                fontSize = 16.sp
+            )
+        }
+        if (!isLast) {
+            HorizontalDivider(color = AppleDivider.copy(alpha = 0.5f), modifier = Modifier.padding(start = 16.dp))
+        }
+    }
+}
+
+@Composable
+private fun IosActionRow(
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    isLast: Boolean
+) {
+    Column(modifier = Modifier.clickable(enabled = enabled, onClick = onClick)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                color = if (enabled) AppleBlue else AppleTextSecondary.copy(alpha = 0.5f),
+                fontSize = 16.sp
+            )
+        }
+        if (!isLast) {
+            HorizontalDivider(color = AppleDivider.copy(alpha = 0.5f), modifier = Modifier.padding(start = 16.dp))
+        }
+    }
+}
+
+@Composable
+private fun IosButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    isLoading: Boolean
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = IosCardShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = AppleBlue,
+            disabledContainerColor = AppleBlue.copy(alpha = 0.5f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = Color.White,
+                strokeWidth = 2.dp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Text(text = text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    }
 }
 
 @Composable
@@ -172,291 +396,17 @@ private fun PopupAlert(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(if (isError) "문제가 있어요" else "안내", color = SurfaceTextPrimary, fontWeight = FontWeight.SemiBold)
+            Text(if (isError) "Error" else "Info", color = AppleTextPrimary, fontWeight = FontWeight.SemiBold)
         },
         text = {
-            Text(message, color = SurfaceTextSecondary, lineHeight = 20.sp)
+            Text(message, color = AppleTextPrimary, fontSize = 14.sp)
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("확인", color = AccentBlue, fontWeight = FontWeight.SemiBold)
+                Text("OK", color = AppleBlue, fontWeight = FontWeight.SemiBold)
             }
         },
-        containerColor = Color(0xFFF8FBFF),
+        containerColor = AppleSurface,
+        shape = IosCardShape
     )
-}
-
-@Composable
-private fun PairingInputSection(
-    backdrop: Backdrop,
-    uiState: PairingUiState,
-    onDeviceNameChanged: (String) -> Unit,
-    onQrPayloadChanged: (String) -> Unit,
-    onPreparePairing: () -> Unit,
-) {
-    GlassPanel(backdrop = backdrop) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionTitle(
-                title = "페어링",
-                subtitle = "카메라 앱으로 QR을 찍으면 자동으로 들어와요. 필요하면 링크를 직접 붙여 넣어도 돼요.",
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatusChip(
-                    label = if (uiState.runtimeSnapshot.isConnected) "연결됨" else "대기 중",
-                    accent = if (uiState.runtimeSnapshot.isConnected) AccentMint else AccentBlue,
-                )
-                StatusChip(
-                    label = if (uiState.notificationAccessGranted) "알림 허용됨" else "알림 필요",
-                    accent = if (uiState.notificationAccessGranted) AccentBlue else AccentLavender,
-                )
-            }
-            SimpleTextField(
-                value = uiState.deviceName,
-                onValueChange = onDeviceNameChanged,
-                label = "기기 이름",
-                singleLine = true,
-            )
-            SimpleTextField(
-                value = uiState.qrPayload,
-                onValueChange = onQrPayloadChanged,
-                label = "QR 내용 또는 URL",
-                minLines = 4,
-                singleLine = false,
-            )
-            GlassButton(
-                backdrop = backdrop,
-                text = if (uiState.isBusy) "연결 중" else "링크로 연결",
-                onClick = onPreparePairing,
-                enabled = !uiState.isBusy,
-                accent = AccentBlue,
-                leading = {
-                    if (uiState.isBusy) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White,
-                        )
-                    }
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun RuntimeSection(
-    backdrop: Backdrop,
-    uiState: PairingUiState,
-    onOpenNotificationAccess: () -> Unit,
-    onManualClipboardSend: () -> Unit,
-    onStartBridge: () -> Unit,
-) {
-    GlassPanel(backdrop = backdrop, accent = AccentMint) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionTitle(
-                title = "브리지 실행",
-                subtitle = "클립보드 감시와 알림 브리지를 원하는 순간에 깨끗하게 시작할 수 있어요.",
-            )
-
-            MetricRow(label = "상태", value = uiState.runtimeSnapshot.status)
-            MetricRow(label = "클립보드", value = if (uiState.clipboardStatus.isMonitoring) "감시 중" else "중지")
-            MetricRow(label = "알림 접근", value = if (uiState.notificationAccessGranted) "허용됨" else "필요")
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GlassButton(
-                    backdrop = backdrop,
-                    text = "클립보드 전송",
-                    onClick = onManualClipboardSend,
-                    enabled = uiState.activeCredentials != null,
-                    accent = AccentLavender,
-                    modifier = Modifier.weight(1f),
-                )
-                GlassButton(
-                    backdrop = backdrop,
-                    text = "시작",
-                    onClick = onStartBridge,
-                    enabled = uiState.activeCredentials != null,
-                    accent = AccentBlue,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            GlassButton(
-                backdrop = backdrop,
-                text = "알림 접근 설정",
-                onClick = onOpenNotificationAccess,
-                accent = AccentMint,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionTitle(
-    title: String,
-    subtitle: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = title,
-            color = SurfaceTextPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = subtitle,
-            color = SurfaceTextSecondary,
-            fontSize = 13.sp,
-            lineHeight = 19.sp,
-        )
-    }
-}
-
-@Composable
-private fun MetricRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(FieldShape)
-            .background(Color.White.copy(alpha = 0.2f))
-            .border(1.dp, Color.White.copy(alpha = 0.38f), FieldShape)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = label, color = SurfaceTextSecondary, fontSize = 13.sp)
-        Text(text = value, color = SurfaceTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-private fun StatusChip(
-    label: String,
-    accent: Color,
-) {
-    Box(
-        modifier = Modifier
-            .clip(ButtonShape)
-            .background(accent.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.55f), ButtonShape)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    ) {
-        Text(
-            text = label,
-            color = SurfaceTextPrimary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
-private fun GlassPanel(
-    backdrop: Backdrop,
-    modifier: Modifier = Modifier,
-    accent: Color = AccentBlue,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { CardShape },
-                effects = {
-                    vibrancy()
-                    blur(10.dp.toPx())
-                    lens(20.dp.toPx(), 28.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(GlassSurfaceStrong)
-                    drawRect(accent.copy(alpha = 0.08f), blendMode = BlendMode.Hue)
-                    drawRect(accent.copy(alpha = 0.08f))
-                },
-            )
-            .border(1.dp, GlassBorder, CardShape)
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        content = content,
-    )
-}
-
-@Composable
-private fun SimpleTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    singleLine: Boolean,
-    minLines: Int = 1,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, color = SurfaceTextSecondary) },
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        singleLine = singleLine,
-        minLines = minLines,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Color.White.copy(alpha = 0.8f),
-            unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-            focusedTextColor = SurfaceTextPrimary,
-            unfocusedTextColor = SurfaceTextPrimary,
-            cursorColor = AccentBlue,
-            focusedContainerColor = GlassSurface,
-            unfocusedContainerColor = GlassSurface,
-            focusedLabelColor = SurfaceTextSecondary,
-            unfocusedLabelColor = SurfaceTextSecondary,
-        ),
-        shape = FieldShape,
-    )
-}
-
-@Composable
-private fun GlassButton(
-    backdrop: Backdrop,
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    accent: Color = AccentBlue,
-    fillWidth: Boolean = true,
-    leading: (@Composable () -> Unit)? = null,
-) {
-    val buttonModifier = if (fillWidth) modifier.fillMaxWidth() else modifier
-
-    Row(
-        modifier = buttonModifier
-            .height(52.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ButtonShape },
-                effects = {
-                    blur(6.dp.toPx())
-                    lens(14.dp.toPx(), 18.dp.toPx())
-                },
-                onDrawSurface = {
-                    val base = if (enabled) accent else Color.LightGray
-                    drawRect(base.copy(alpha = if (enabled) 0.78f else 0.42f))
-                    drawRect(Color.White.copy(alpha = if (enabled) 0.18f else 0.08f))
-                },
-            )
-            .border(1.dp, Color.White.copy(alpha = if (enabled) 0.55f else 0.24f), ButtonShape)
-            .clip(ButtonShape)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 18.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        leading?.invoke()
-        if (leading != null) {
-            Box(modifier = Modifier.width(8.dp))
-        }
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
 }

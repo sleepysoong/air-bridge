@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import rikka.shizuku.Shizuku
 
 class PairingViewModel(
     private val container: AppContainer,
@@ -62,6 +63,23 @@ class PairingViewModel(
         mutableUiState.update { it.copy(notificationAccessGranted = isGranted) }
     }
 
+    fun updateShizukuStatus() {
+        val available = Shizuku.pingBinder()
+        val granted = available && Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+        mutableUiState.update { 
+            it.copy(
+                shizukuAvailable = available,
+                shizukuPermissionGranted = granted
+            )
+        }
+    }
+
+    fun requestShizukuPermission() {
+        if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Shizuku.requestPermission(1001)
+        }
+    }
+
     fun preparePairing() {
         val qrPayloadRaw = mutableUiState.value.qrPayload
         val deviceName = mutableUiState.value.deviceName
@@ -101,14 +119,6 @@ class PairingViewModel(
         mutableUiState.update { it.copy(infoMessage = "현재 클립보드 전송을 요청했어요.") }
     }
 
-    fun startClipboardMonitoring() {
-        container.clipboardSyncCoordinator.startForegroundMonitoring()
-    }
-
-    fun stopClipboardMonitoring() {
-        container.clipboardSyncCoordinator.stopForegroundMonitoring()
-    }
-
     fun startBridge() {
         container.bridgeRuntime.startForegroundService()
         container.bridgeRuntime.ensureRunning()
@@ -134,6 +144,8 @@ data class PairingUiState(
     val isBusy: Boolean = false,
     val activeCredentials: StoredRelayCredentials? = null,
     val notificationAccessGranted: Boolean = false,
+    val shizukuAvailable: Boolean = false,
+    val shizukuPermissionGranted: Boolean = false,
     val clipboardStatus: ClipboardSyncStatus = ClipboardSyncStatus(),
     val runtimeSnapshot: BridgeRuntimeSnapshot = BridgeRuntimeSnapshot(),
     val errorMessage: String? = null,

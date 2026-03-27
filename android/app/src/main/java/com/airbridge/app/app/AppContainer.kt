@@ -10,6 +10,9 @@ import com.airbridge.app.data.storage.RelayCredentialStore
 import com.airbridge.app.data.storage.SecurePreferencesStore
 import com.airbridge.app.feature.clipboard.AndroidClipboardApplyGateway
 import com.airbridge.app.feature.clipboard.AndroidClipboardReadGateway
+import com.airbridge.app.feature.clipboard.ClipboardReadGateway
+import com.airbridge.app.feature.clipboard.DualClipboardReadGateway
+import com.airbridge.app.feature.clipboard.ShizukuClipboardReadGateway
 import com.airbridge.app.feature.clipboard.ClipboardSyncCoordinator
 import com.airbridge.app.feature.common.BridgeFeatureRegistry
 import com.airbridge.app.feature.notification.AirBridgeNotificationListenerService
@@ -54,7 +57,10 @@ class AppContainer(
     val relayCredentialStore = RelayCredentialStore(securePreferencesStore)
     val relayHttpClient = RelayHttpClient(okHttpClient, json)
     val relayWebSocketClient = RelayWebSocketClient(okHttpClient, json)
-    val clipboardReadGateway = AndroidClipboardReadGateway(appContext)
+    val clipboardReadGateway: ClipboardReadGateway = DualClipboardReadGateway(
+        standardGateway = AndroidClipboardReadGateway(appContext),
+        shizukuGateway = ShizukuClipboardReadGateway(appContext)
+    )
     val clipboardApplyGateway = AndroidClipboardApplyGateway(
         context = appContext,
         providerAuthority = "${appContext.packageName}.clipboard",
