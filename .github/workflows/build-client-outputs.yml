@@ -167,7 +167,7 @@ jobs:
         run: |
           mkdir -p outputs/mac
           DMG_NAME="air-bridge_v${{ needs.changes.outputs.app_version }}.dmg"
-          hdiutil create -volname "AirBridge" -srcfolder "dist/AirBridgeMac.app" -ov -format UDZO "outputs/mac/$DMG_NAME"
+          hdiutil create -volname "AirBridge" -srcfolder "dist" -ov -format UDZO "outputs/mac/$DMG_NAME"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
