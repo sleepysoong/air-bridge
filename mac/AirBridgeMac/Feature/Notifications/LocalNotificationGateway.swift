@@ -19,7 +19,15 @@ final class LocalNotificationGateway {
 
     @MainActor
     func requestAuthorization() async throws -> Bool {
-        try await center.requestAuthorization(options: [.badge, .sound])
+        try await withCheckedThrowingContinuation { continuation in
+            center.requestAuthorization(options: [.badge, .sound]) { granted, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(returning: granted)
+            }
+        }
     }
 
     @MainActor
@@ -50,7 +58,15 @@ final class LocalNotificationGateway {
                 content: content,
                 trigger: nil
             )
-            try await center.add(request)
+            try await withCheckedThrowingContinuation { continuation in
+                center.add(request) { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    continuation.resume(returning: ())
+                }
+            }
         }
     }
 }
