@@ -23,10 +23,28 @@ data class NotificationSnapshot(
     val packageName: String,
     val appName: String,
     val title: String?,
+    val subtitle: String?,
     val body: String?,
     val postedAt: Instant,
     val observedAt: Instant,
     val isOngoing: Boolean,
+    val category: String?,
+    val channelId: String?,
+    val channelName: String?,
+    val assets: NotificationAssetSnapshot? = null,
+)
+
+data class NotificationAssetSnapshot(
+    val appIcon: NotificationImageSnapshot? = null,
+    val largeIcon: NotificationImageSnapshot? = null,
+    val heroImage: NotificationImageSnapshot? = null,
+)
+
+data class NotificationImageSnapshot(
+    val mimeType: String,
+    val binaryPayload: ByteArray,
+    val width: Int,
+    val height: Int,
 )
 
 enum class ClipboardTransferOrigin {
@@ -80,4 +98,3 @@ interface BridgeForegroundServiceDelegate {
     fun onForegroundServiceStarted(service: Service)
     fun onForegroundServiceStopped()
 }
-

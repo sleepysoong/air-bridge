@@ -15,7 +15,9 @@ import com.airbridge.app.data.storage.RelayCredentialStore
 import com.airbridge.app.domain.BridgeChannel
 import com.airbridge.app.domain.ClipboardPayload
 import com.airbridge.app.domain.IncomingEncryptedEnvelope
+import com.airbridge.app.domain.NotificationAssetPayload
 import com.airbridge.app.domain.NotificationEvent
+import com.airbridge.app.domain.NotificationImagePayload
 import com.airbridge.app.domain.NotificationPayload
 import com.airbridge.app.domain.StoredDeviceIdentity
 import com.airbridge.app.domain.StoredRelayCredentials
@@ -29,6 +31,7 @@ import com.airbridge.app.feature.common.ClipboardSnapshot
 import com.airbridge.app.feature.common.ClipboardTransferOrigin
 import com.airbridge.app.feature.common.NotificationEventType
 import com.airbridge.app.feature.common.NotificationOutboundSink
+import com.airbridge.app.feature.common.NotificationImageSnapshot
 import com.airbridge.app.feature.common.NotificationSnapshot
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
@@ -272,7 +275,7 @@ class BridgeRuntime(
                 val notificationPayload = payload.snapshot.toDomainPayload()
                 Triple(
                     BridgeChannel.NOTIFICATION,
-                    "application/json",
+                    "application/vnd.airbridge.notification+json",
                     json.encodeToString(NotificationPayload.serializer(), notificationPayload).encodeToByteArray(),
                 )
             }
@@ -364,9 +367,28 @@ class BridgeRuntime(
         packageName = packageName,
         appName = appName,
         title = title,
+        subtitle = subtitle,
         body = body,
         postedAt = postedAt.toString(),
+        observedAt = observedAt.toString(),
         isOngoing = isOngoing,
+        category = category,
+        channelId = channelId,
+        channelName = channelName,
+        assets = assets?.toDomainPayload(),
+    )
+
+    private fun com.airbridge.app.feature.common.NotificationAssetSnapshot.toDomainPayload(): NotificationAssetPayload = NotificationAssetPayload(
+        appIcon = appIcon?.toDomainPayload(),
+        largeIcon = largeIcon?.toDomainPayload(),
+        heroImage = heroImage?.toDomainPayload(),
+    )
+
+    private fun NotificationImageSnapshot.toDomainPayload(): NotificationImagePayload = NotificationImagePayload(
+        mimeType = mimeType,
+        dataBase64 = binaryPayload.encodeBase64(),
+        width = width,
+        height = height,
     )
 
     private fun ClipboardPayload.toSnapshot(): ClipboardSnapshot {

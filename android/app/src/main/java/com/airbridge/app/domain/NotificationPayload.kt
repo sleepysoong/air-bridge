@@ -16,9 +16,29 @@ enum class NotificationEvent {
 }
 
 @Serializable
+data class NotificationImagePayload(
+    @SerialName("mime_type")
+    val mimeType: String,
+    @SerialName("data_base64")
+    val dataBase64: String,
+    val width: Int,
+    val height: Int,
+)
+
+@Serializable
+data class NotificationAssetPayload(
+    @SerialName("app_icon")
+    val appIcon: NotificationImagePayload? = null,
+    @SerialName("large_icon")
+    val largeIcon: NotificationImagePayload? = null,
+    @SerialName("hero_image")
+    val heroImage: NotificationImagePayload? = null,
+)
+
+@Serializable
 data class NotificationPayload(
     @SerialName("schema_version")
-    val schemaVersion: Int = 1,
+    val schemaVersion: Int = 2,
     val event: NotificationEvent,
     @SerialName("notification_id")
     val notificationId: String,
@@ -27,10 +47,18 @@ data class NotificationPayload(
     @SerialName("app_name")
     val appName: String,
     val title: String? = null,
+    val subtitle: String? = null,
     val body: String? = null,
     @SerialName("posted_at")
     val postedAt: String,
+    @SerialName("observed_at")
+    val observedAt: String,
     @SerialName("is_ongoing")
     val isOngoing: Boolean,
+    val category: String? = null,
+    @SerialName("channel_id")
+    val channelId: String? = null,
+    @SerialName("channel_name")
+    val channelName: String? = null,
+    val assets: NotificationAssetPayload? = null,
 )
-
