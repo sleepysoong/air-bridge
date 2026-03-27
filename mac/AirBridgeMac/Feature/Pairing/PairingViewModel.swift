@@ -154,6 +154,11 @@ final class PairingViewModel: ObservableObject {
         await appContainer?.reconnectRelay()
     }
 
+    func requestNotificationAuthorization() async {
+        DesktopFileLogger.log("PairingViewModel requestNotificationAuthorization requested")
+        await appContainer?.requestNotificationAuthorization()
+    }
+
     private var normalizedRelayURL: URL? {
         let trimmed = appState.relayBaseURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed),

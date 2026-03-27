@@ -48,6 +48,12 @@ struct PairingView: View {
 
             Toggle("Notification Permission Granted", isOn: .constant(appState.notificationAuthorizationGranted))
                 .disabled(true)
+
+            Button("Request Notification Permission") {
+                Task {
+                    await viewModel.requestNotificationAuthorization()
+                }
+            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)

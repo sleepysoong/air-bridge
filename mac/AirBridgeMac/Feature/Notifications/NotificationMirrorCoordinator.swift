@@ -26,7 +26,7 @@ final class NotificationMirrorCoordinator {
         let status = await gateway.currentAuthorizationStatus()
         switch status {
         case .notDetermined:
-            return try await gateway.requestAuthorization()
+            return false
         case .authorized, .provisional, .ephemeral:
             return true
         case .denied:

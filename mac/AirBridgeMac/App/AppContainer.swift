@@ -138,6 +138,18 @@ final class AppContainer {
         await connectRelay(using: pairedSession, reconnecting: true)
     }
 
+    func requestNotificationAuthorization() async {
+        DesktopFileLogger.log("Manual notification authorization request started")
+
+        do {
+            let granted = try await notificationMirrorCoordinator.requestAuthorization()
+            appState.notificationAuthorizationGranted = granted
+            DesktopFileLogger.log("Manual notification authorization request finished: \(granted)")
+        } catch {
+            appState.setLatestError(error)
+        }
+    }
+
     private func connectRelay(using session: PairedDeviceSession, reconnecting: Bool) async {
         reconnectTask?.cancel()
         relayWebSocketClient.disconnect()
