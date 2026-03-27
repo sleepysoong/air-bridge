@@ -65,7 +65,7 @@ struct PairingView: View {
             Text("페어링")
                 .font(.title2.bold())
 
-            TextField("Relay URL", text: $appState.relayBaseURLText)
+            TextField("Relay URL (예: http://192.168.0.10:8080)", text: $appState.relayBaseURLText)
                 .textFieldStyle(.roundedBorder)
 
             TextField("기기 이름", text: $appState.deviceName)
