@@ -11,7 +11,9 @@ import com.airbridge.app.data.relay.RelaySocketConnection
 import com.airbridge.app.data.relay.RelayWebSocketClient
 import com.airbridge.app.data.relay.toWire
 import com.airbridge.app.data.storage.DeviceIdentityStore
+import com.airbridge.app.data.storage.OutboundEnvelopeQueueStore
 import com.airbridge.app.data.storage.RelayCredentialStore
+import com.airbridge.app.data.storage.RuntimePreferencesStore
 import com.airbridge.app.domain.BridgeChannel
 import com.airbridge.app.domain.ClipboardPayload
 import com.airbridge.app.domain.IncomingEncryptedEnvelope
@@ -19,6 +21,7 @@ import com.airbridge.app.domain.NotificationAssetPayload
 import com.airbridge.app.domain.NotificationEvent
 import com.airbridge.app.domain.NotificationImagePayload
 import com.airbridge.app.domain.NotificationPayload
+import com.airbridge.app.domain.PersistedOutboundEnvelope
 import com.airbridge.app.domain.StoredDeviceIdentity
 import com.airbridge.app.domain.StoredRelayCredentials
 import com.airbridge.app.feature.clipboard.ClipboardApplyGateway
@@ -56,6 +59,8 @@ class BridgeRuntime(
     private val json: Json,
     private val deviceIdentityStore: DeviceIdentityStore,
     private val relayCredentialStore: RelayCredentialStore,
+    private val outboundEnvelopeQueueStore: OutboundEnvelopeQueueStore,
+    private val runtimePreferencesStore: RuntimePreferencesStore,
     private val relayWebSocketClient: RelayWebSocketClient,
     private val envelopeCipher: EnvelopeCipher,
 ) : ClipboardOutboundSink, NotificationOutboundSink, BridgeForegroundServiceDelegate {
@@ -72,12 +77,14 @@ class BridgeRuntime(
     @Volatile
     private var activeConnection: RelaySocketConnection? = null
     private val lifecycleMutex = Mutex()
+    private val drainMutex = Mutex()
     
     lateinit var clipboardSyncCoordinator: ClipboardSyncCoordinator
 
     val snapshot: StateFlow<BridgeRuntimeSnapshot> = mutableSnapshot.asStateFlow()
 
     override fun onForegroundServiceStarted(service: Service) {
+        runtimePreferencesStore.setForegroundRuntimeEnabled(true)
         ensureRunning()
         clipboardSyncCoordinator.startForegroundMonitoring()
         mutableSnapshot.value = mutableSnapshot.value.copy(
@@ -87,6 +94,7 @@ class BridgeRuntime(
     }
 
     override fun onForegroundServiceStopped() {
+        runtimePreferencesStore.setForegroundRuntimeEnabled(false)
         clipboardSyncCoordinator.stopForegroundMonitoring()
         scope.launch {
             resetRuntime(
@@ -123,6 +131,7 @@ class BridgeRuntime(
 
     fun reloadStoredPairing() {
         scope.launch {
+            outboundEnvelopeQueueStore.clear()
             resetRuntime(
                 keepServiceRunning = true,
                 status = "새 페어링 정보를 적용했어요",
@@ -133,6 +142,8 @@ class BridgeRuntime(
 
     fun clearActivePairing() {
         scope.launch {
+            outboundEnvelopeQueueStore.clear()
+            runtimePreferencesStore.setForegroundRuntimeEnabled(false)
             resetRuntime(
                 keepServiceRunning = mutableSnapshot.value.isServiceRunning,
                 status = "저장된 페어링을 정리했어요",
@@ -188,7 +199,10 @@ class BridgeRuntime(
         activeConnection = connection
         val senderJob = launch {
             outboundMessages.collect { payload ->
-                sendPayload(connection, payload, credentials, identity)
+                persistPayload(payload, credentials, identity)
+                if (mutableSnapshot.value.isConnected) {
+                    drainPersistedQueue(connection)
+                }
             }
         }
 
@@ -203,6 +217,7 @@ class BridgeRuntime(
                             status = "relay 연결이 활성화되었어요",
                             lastError = null,
                         )
+                        drainPersistedQueue(connection)
                     }
                     is RelayServerEvent.Envelope -> {
                         handleIncomingEnvelope(event.envelope, connection, credentials, identity)
@@ -255,8 +270,7 @@ class BridgeRuntime(
         }
     }
 
-    private suspend fun sendPayload(
-        connection: RelaySocketConnection,
+    private suspend fun persistPayload(
         payload: OutboundPayload,
         credentials: StoredRelayCredentials,
         identity: StoredDeviceIdentity,
@@ -292,15 +306,40 @@ class BridgeRuntime(
             peerPublicKeyBase64 = credentials.peerPublicKeyBase64,
         )
 
-        connection.sendEnvelope(encryptedEnvelope.toWire(credentials.peerDeviceId))
-        mutableSnapshot.value = mutableSnapshot.value.copy(
-            lastSentAt = Instant.now(),
-            status = when (payload) {
-                is OutboundPayload.Clipboard -> "클립보드를 암호화해서 전송했어요"
-                is OutboundPayload.Notification -> "알림을 암호화해서 전송했어요"
-            },
-            lastError = null,
+        outboundEnvelopeQueueStore.enqueue(
+            PersistedOutboundEnvelope(
+                recipientDeviceId = credentials.peerDeviceId,
+                channel = encryptedEnvelope.channel,
+                contentType = encryptedEnvelope.contentType,
+                nonce = encryptedEnvelope.nonce.encodeBase64(),
+                headerAad = encryptedEnvelope.headerAad.encodeBase64(),
+                ciphertext = encryptedEnvelope.ciphertext.encodeBase64(),
+                createdAt = Instant.now().toString(),
+            ),
         )
+        mutableSnapshot.value = mutableSnapshot.value.copy(lastError = null)
+    }
+
+    private suspend fun drainPersistedQueue(connection: RelaySocketConnection) {
+        drainMutex.withLock {
+            val pendingItems = outboundEnvelopeQueueStore.readAll()
+            if (pendingItems.isEmpty()) {
+                return
+            }
+
+            for (item in pendingItems) {
+                connection.sendEnvelope(item.toWireMessage())
+                outboundEnvelopeQueueStore.remove(item.queueId)
+                mutableSnapshot.value = mutableSnapshot.value.copy(
+                    lastSentAt = Instant.now(),
+                    status = when (item.channel) {
+                        BridgeChannel.CLIPBOARD -> "클립보드를 전송했어요"
+                        BridgeChannel.NOTIFICATION -> "알림을 전송했어요"
+                    },
+                    lastError = null,
+                )
+            }
+        }
     }
 
     private suspend fun handleIncomingEnvelope(
@@ -389,6 +428,18 @@ class BridgeRuntime(
         dataBase64 = binaryPayload.encodeBase64(),
         width = width,
         height = height,
+    )
+
+    private fun PersistedOutboundEnvelope.toWireMessage() = com.airbridge.app.data.relay.RelaySendEnvelopeMessage(
+        recipientDeviceId = recipientDeviceId,
+        channel = when (channel) {
+            BridgeChannel.CLIPBOARD -> "clipboard"
+            BridgeChannel.NOTIFICATION -> "notification"
+        },
+        contentType = contentType,
+        nonce = nonce,
+        headerAad = headerAad,
+        ciphertext = ciphertext,
     )
 
     private fun ClipboardPayload.toSnapshot(): ClipboardSnapshot {

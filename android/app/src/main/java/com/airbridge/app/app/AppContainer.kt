@@ -6,7 +6,9 @@ import com.airbridge.app.data.crypto.SessionKeyStore
 import com.airbridge.app.data.relay.RelayHttpClient
 import com.airbridge.app.data.relay.RelayWebSocketClient
 import com.airbridge.app.data.storage.DeviceIdentityStore
+import com.airbridge.app.data.storage.OutboundEnvelopeQueueStore
 import com.airbridge.app.data.storage.RelayCredentialStore
+import com.airbridge.app.data.storage.RuntimePreferencesStore
 import com.airbridge.app.data.storage.SecurePreferencesStore
 import com.airbridge.app.feature.clipboard.AndroidClipboardApplyGateway
 import com.airbridge.app.feature.clipboard.AndroidClipboardReadGateway
@@ -55,6 +57,8 @@ class AppContainer(
 
     val deviceIdentityStore = DeviceIdentityStore(securePreferencesStore)
     val relayCredentialStore = RelayCredentialStore(securePreferencesStore)
+    val outboundEnvelopeQueueStore = OutboundEnvelopeQueueStore(securePreferencesStore)
+    val runtimePreferencesStore = RuntimePreferencesStore(appContext)
     val relayHttpClient = RelayHttpClient(okHttpClient, json)
     val relayWebSocketClient = RelayWebSocketClient(okHttpClient, json)
     val clipboardReadGateway: ClipboardReadGateway = DualClipboardReadGateway(
@@ -72,6 +76,8 @@ class AppContainer(
         json = json,
         deviceIdentityStore = deviceIdentityStore,
         relayCredentialStore = relayCredentialStore,
+        outboundEnvelopeQueueStore = outboundEnvelopeQueueStore,
+        runtimePreferencesStore = runtimePreferencesStore,
         relayWebSocketClient = relayWebSocketClient,
         envelopeCipher = envelopeCipher,
     )

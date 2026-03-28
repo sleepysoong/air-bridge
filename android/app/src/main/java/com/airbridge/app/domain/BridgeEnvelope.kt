@@ -2,6 +2,7 @@ package com.airbridge.app.domain
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
 @Serializable
 enum class BridgeChannel {
@@ -45,3 +46,18 @@ data class IncomingEncryptedEnvelope(
     val ciphertext: ByteArray,
 )
 
+@Serializable
+data class PersistedOutboundEnvelope(
+    val queueId: String = UUID.randomUUID().toString(),
+    @SerialName("recipient_device_id")
+    val recipientDeviceId: String,
+    val channel: BridgeChannel,
+    @SerialName("content_type")
+    val contentType: String,
+    val nonce: String,
+    @SerialName("header_aad")
+    val headerAad: String,
+    val ciphertext: String,
+    @SerialName("created_at")
+    val createdAt: String,
+)

@@ -82,24 +82,31 @@ class RelaySocketConnection(
     private val json: Json,
 ) {
     fun ping() {
-        webSocket.send(json.encodeToString(RelayPingMessage.serializer(), RelayPingMessage()))
+        require(webSocket.send(json.encodeToString(RelayPingMessage.serializer(), RelayPingMessage()))) {
+            "relay ping 전송에 실패했어요"
+        }
     }
 
     fun sendEnvelope(message: RelaySendEnvelopeMessage) {
-        webSocket.send(json.encodeToString(RelaySendEnvelopeMessage.serializer(), message))
+        require(webSocket.send(json.encodeToString(RelaySendEnvelopeMessage.serializer(), message))) {
+            "relay envelope 전송에 실패했어요"
+        }
     }
 
     fun acknowledgeEnvelope(envelopeId: String) {
-        webSocket.send(
-            json.encodeToString(
-                RelayAckEnvelopeMessage.serializer(),
-                RelayAckEnvelopeMessage(envelopeId = envelopeId),
+        require(
+            webSocket.send(
+                json.encodeToString(
+                    RelayAckEnvelopeMessage.serializer(),
+                    RelayAckEnvelopeMessage(envelopeId = envelopeId),
+                ),
             ),
-        )
+        ) {
+            "relay ack 전송에 실패했어요"
+        }
     }
 
     fun close() {
         webSocket.close(1000, "closing")
     }
 }
-
