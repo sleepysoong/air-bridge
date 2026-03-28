@@ -6,6 +6,7 @@ final class AppContainer {
     let appState: AppState
 
     private let sessionKeyStore: SessionKeyStore
+    private let outboundEnvelopeQueueStore: OutboundEnvelopeQueueStore
     private let relayWebSocketClient: RelayWebSocketClient
     private let clipboardSyncCoordinator: ClipboardSyncCoordinator
     private let notificationMirrorCoordinator: NotificationMirrorCoordinator
@@ -13,6 +14,7 @@ final class AppContainer {
 
     private var didStart = false
     private var reconnectTask: Task<Void, Never>?
+    private var isDrainingOutboundQueue = false
 
     init(appState: AppState) {
         self.appState = appState
@@ -21,6 +23,7 @@ final class AppContainer {
         let keychainStore = KeychainStore()
         let sessionKeyStore = SessionKeyStore(keychainStore: keychainStore)
         let envelopeCipher = EnvelopeCipher()
+        let outboundEnvelopeQueueStore = OutboundEnvelopeQueueStore()
         let relayWebSocketClient = RelayWebSocketClient()
         let clipboardSyncCoordinator = ClipboardSyncCoordinator(
             appState: appState,
@@ -35,6 +38,7 @@ final class AppContainer {
         )
 
         self.sessionKeyStore = sessionKeyStore
+        self.outboundEnvelopeQueueStore = outboundEnvelopeQueueStore
         self.relayWebSocketClient = relayWebSocketClient
         self.clipboardSyncCoordinator = clipboardSyncCoordinator
         self.notificationMirrorCoordinator = notificationMirrorCoordinator
@@ -106,6 +110,7 @@ final class AppContainer {
     func activatePairedSession(_ session: PairedDeviceSession) async throws {
         DesktopFileLogger.log("Activating paired session")
         reconnectTask?.cancel()
+        outboundEnvelopeQueueStore.clear()
         try sessionKeyStore.savePairedSession(session)
 
         appState.pairedSession = session
@@ -121,6 +126,7 @@ final class AppContainer {
         DesktopFileLogger.log("Clearing pairing state")
         reconnectTask?.cancel()
         relayWebSocketClient.disconnect()
+        outboundEnvelopeQueueStore.clear()
         clipboardSyncCoordinator.stop()
 
         do {
@@ -194,6 +200,7 @@ final class AppContainer {
                 appState.connectionState = .connected
                 appState.peerDeviceID = peerDeviceID
                 appState.setLatestError(nil)
+                await drainOutboundQueue()
             case .pong:
                 DesktopFileLogger.log("Relay pong received")
                 break
@@ -247,16 +254,52 @@ final class AppContainer {
             throw RelayWebSocketClientError.notConnected
         }
 
-        try await relayWebSocketClient.send(
-            .sendEnvelope(
+        outboundEnvelopeQueueStore.enqueue(
+            PersistedRelayEnvelope(
+                queueID: UUID().uuidString,
                 recipientDeviceID: pairedSession.peerDeviceID,
                 channel: channel,
                 contentType: contentType,
-                nonce: nonce,
-                headerAAD: headerAAD,
-                ciphertext: ciphertext
+                nonce: nonce.rawBase64EncodedString,
+                headerAAD: headerAAD.rawBase64EncodedString,
+                ciphertext: ciphertext.rawBase64EncodedString,
+                createdAt: Date()
             )
         )
+
+        do {
+            try await drainOutboundQueue()
+        } catch RelayWebSocketClientError.notConnected {
+            DesktopFileLogger.log("Outbound envelope queued until relay reconnects")
+        }
+    }
+
+    private func drainOutboundQueue() async throws {
+        guard !isDrainingOutboundQueue else {
+            return
+        }
+        isDrainingOutboundQueue = true
+        defer { isDrainingOutboundQueue = false }
+
+        let pendingItems = outboundEnvelopeQueueStore.readAll()
+        guard !pendingItems.isEmpty else {
+            return
+        }
+
+        for item in pendingItems {
+            try await relayWebSocketClient.send(
+                .sendEnvelope(
+                    recipientDeviceID: item.recipientDeviceID,
+                    channel: item.channel,
+                    contentType: item.contentType,
+                    nonce: try Data(rawBase64Encoded: item.nonce),
+                    headerAAD: try Data(rawBase64Encoded: item.headerAAD),
+                    ciphertext: try Data(rawBase64Encoded: item.ciphertext)
+                )
+            )
+            outboundEnvelopeQueueStore.remove(queueID: item.queueID)
+            appState.lastClipboardSyncAt = item.channel == .clipboard ? Date() : appState.lastClipboardSyncAt
+        }
     }
 
     private func scheduleReconnect(for session: PairedDeviceSession) {
