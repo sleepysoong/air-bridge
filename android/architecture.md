@@ -18,6 +18,8 @@ Android 앱은 주요 기능이 이미 구현되어 있어요:
 - Mac→Android 클립보드 자동 적용
 - Android→Mac 이미지 클립보드 전송 보강
 - 클립보드 루프 방지
+- outbound envelope durable queue
+- 부팅 후 foreground runtime 자동 복구
 - 서버 입력 제한 클라이언트 검증
 - QR 파싱, 암호화, Relay 매핑, 클립보드 동기화 단위 테스트
 
@@ -119,6 +121,7 @@ android/
 ### `feature/clipboard`
 
 - `ClipboardSyncCoordinator`: 전경 자동 모니터링 + 수동 전송 조율, 루프 방지 (`lastAppliedFingerprint`, `lastSentFingerprint`)
+- `ClipboardSyncStateStore`: 마지막 sent/applied fingerprint를 저장해서 재시작 직후 중복 전송을 줄여요
 - `AndroidClipboardReadGateway`: Android 클립보드 읽기, MIME 타입 정규화, content URI 기반 이미지 판별 보강
 - `ShizukuClipboardReadGateway`: Shizuku user service를 통한 백그라운드 클립보드 읽기
 - `DualClipboardReadGateway`: Shizuku 가능 여부에 따라 elevated 경로와 기본 경로를 선택
@@ -135,7 +138,8 @@ android/
 ### `feature/service`
 
 - `AirBridgeRelayForegroundService`: Foreground Service 앵커 (START_STICKY)
-- `BridgeRuntime`: WebSocket 연결 루프, 송수신, 암복호화, ack 처리
+- `AirBridgeBootReceiver`: 마지막으로 켜져 있던 브리지를 부팅 뒤 다시 올려요
+- `BridgeRuntime`: WebSocket 연결 루프, 송수신, 암복호화, ack 처리, outbound queue drain
 - `BridgeForegroundNotificationFactory`: Foreground notification 생성
 
 ### `data/crypto`
@@ -153,6 +157,8 @@ android/
 ### `data/storage`
 
 - `SecurePreferencesStore`: Android Keystore 기반 AES-GCM 암호화 SharedPreferences
+- `OutboundEnvelopeQueueStore`: 아직 못 보낸 암호화 envelope를 queue로 저장해요
+- `RuntimePreferencesStore`: foreground runtime 자동 복구 여부를 기억해요
 - `DeviceIdentityStore`: 로컬 기기 ID + X25519 비밀키 저장
 - `RelayCredentialStore`: Pairing session ID, device ID, relay token, peer public key 저장
 

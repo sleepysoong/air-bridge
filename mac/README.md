@@ -21,6 +21,7 @@ macOS 앱은 아래 책임을 맡아야 해요.
 - 저장소: Keychain에 pairing session과 relay 관련 비밀값을 저장해요.
 - 네트워크: relay HTTP + WebSocket 클라이언트가 실제 서버 계약에 맞게 구현돼 있어요.
 - 기능 범위: pairing, clipboard 송수신, Android 알림 미러링, reconnect, local validation이 포함돼요.
+- reconnect와 앱 재실행 뒤에도 아직 못 보낸 암호화 clipboard envelope를 다시 보낼 수 있게 local queue를 유지해요.
 - Android 알림 미러링은 텍스트뿐 아니라 best-effort 이미지 첨부도 받아서 로컬 알림에 붙여요.
 - 다만 macOS 시스템 제약 때문에 원본 Android 앱의 실제 시스템 알림 아이콘으로 위장해서 보여줄 수는 없고, Air Bridge 알림 안에서 앱 이름과 첨부 이미지로 최대한 비슷하게 보여줘요.
 - 남은 범위: 실제 E2E 검증, 배포 서명 마감, 알림 첨부 표시 품질 다듬기예요.

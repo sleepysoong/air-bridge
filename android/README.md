@@ -19,6 +19,8 @@ Android 앱은 이미 주요 기능이 구현되어 있어요:
 - ✅ Mac→Android 클립보드 자동 적용
 - ✅ Android→Mac 이미지 클립보드 전송 보강
 - ✅ 클립보드 루프 방지 로직
+- ✅ reconnect 대비 outbound envelope durable queue
+- ✅ 부팅 후 브리지 자동 복구
 - ✅ 서버 입력 제한 클라이언트 검증
 
 ## 이 영역의 역할
@@ -30,6 +32,7 @@ Android 앱은 아래 책임을 맡아요:
 - Android 클립보드를 운영체제 제약 안에서 안전하게 수집해요
 - Mac에서 온 클립보드 payload를 Android 클립보드에 반영해요
 - 키와 relay 인증 정보를 안전한 저장소에 보관해요
+- 연결이 끊기거나 프로세스가 다시 시작돼도 아직 못 보낸 envelope를 다시 보내야 해요
 
 ## 먼저 읽어야 할 문서
 
@@ -70,6 +73,13 @@ Android 앱은 아래 책임을 맡아요:
 - 이 fallback 모드에서는 `Android -> Mac` 자동 백그라운드 동기화는 되지 않아요.
 - 대신 기존처럼 **앱이 전경에 있을 때 감시**하거나 **수동 전송 버튼**으로 보내야 해요.
 - `Mac -> Android` 방향의 자동 적용은 Shizuku 없이도 그대로 유지해요.
+
+## 자동 복구 메모
+
+- Android는 암호화가 끝난 outbound envelope를 로컬 queue에 잠깐 저장해요.
+- relay 연결이 잠깐 끊겨도 브리지가 다시 붙으면 queue를 다시 비워서 전송해요.
+- 브리지가 켜진 상태로 종료됐다면 부팅 후 `BOOT_COMPLETED`에서 foreground runtime을 다시 시작할 수 있어요.
+- 클립보드 루프 방지용 fingerprint도 저장해 두어서 프로세스 재시작 직후 같은 내용을 바로 다시 보내지 않게 해요.
 
 ## 프로젝트 구조
 

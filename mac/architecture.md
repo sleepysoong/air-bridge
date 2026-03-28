@@ -77,6 +77,7 @@ mac/
 - `NSPasteboard`의 change count를 감시해야 해요.
 - 지원 포맷을 canonical payload로 정규화해야 해요.
 - 원격에서 들어온 내용을 pasteboard에 쓸 때는 synthetic write guard를 사용해서 반사 루프를 막아야 해요.
+- reconnect나 앱 재실행 전까지 아직 못 보낸 암호화 clipboard envelope를 local queue에 유지해야 해요.
 - relay 입력 제한을 넘는 payload는 전송 전에 macOS 쪽에서 먼저 막아야 해요.
 
 ### Notifications 계층

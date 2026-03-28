@@ -64,6 +64,8 @@ air-bridge/
 - relay 서버의 기본 API, 큐 저장, WebSocket 중계를 구현했어요.
 - Android 앱은 QR 전용 페어링, Shizuku fallback 클립보드 읽기, 알림 수집, 클립보드 송수신을 구현했어요.
 - macOS 앱은 메뉴바 런타임, 클립보드 송수신, Android 알림 미러링, 로컬 알림 표시를 구현했어요.
+- Android와 macOS 모두 reconnect 이후 다시 보낼 수 있도록 송신 측 durable queue를 단계적으로 붙이고 있어요.
+- Android는 마지막으로 켜져 있던 브리지 런타임을 부팅 뒤에 다시 올릴 수 있어요.
 
 ## 현재 제품 메모
 
