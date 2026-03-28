@@ -25,7 +25,6 @@ final class LocalNotificationGateway: Sendable {
         }
     }
 
-    @MainActor
     func apply(_ payload: NotificationPayload) async throws {
         let notificationCenter = UNUserNotificationCenter.current()
         let identifier = "airbridge.notification.\(payload.remoteIdentifier)"
