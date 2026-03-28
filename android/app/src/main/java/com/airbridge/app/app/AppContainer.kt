@@ -6,6 +6,7 @@ import com.airbridge.app.data.crypto.SessionKeyStore
 import com.airbridge.app.data.relay.RelayHttpClient
 import com.airbridge.app.data.relay.RelayWebSocketClient
 import com.airbridge.app.data.storage.DeviceIdentityStore
+import com.airbridge.app.data.storage.ClipboardSyncStateStore
 import com.airbridge.app.data.storage.OutboundEnvelopeQueueStore
 import com.airbridge.app.data.storage.RelayCredentialStore
 import com.airbridge.app.data.storage.RuntimePreferencesStore
@@ -57,6 +58,7 @@ class AppContainer(
 
     val deviceIdentityStore = DeviceIdentityStore(securePreferencesStore)
     val relayCredentialStore = RelayCredentialStore(securePreferencesStore)
+    val clipboardSyncStateStore = ClipboardSyncStateStore(appContext)
     val outboundEnvelopeQueueStore = OutboundEnvelopeQueueStore(securePreferencesStore)
     val runtimePreferencesStore = RuntimePreferencesStore(appContext)
     val relayHttpClient = RelayHttpClient(okHttpClient, json)
@@ -91,6 +93,7 @@ class AppContainer(
         readGateway = clipboardReadGateway,
         applyGateway = clipboardApplyGateway,
         outboundSink = bridgeRuntime,
+        stateStore = clipboardSyncStateStore,
         scope = appScope,
     )
     val pairingRepository = PairingRepository(

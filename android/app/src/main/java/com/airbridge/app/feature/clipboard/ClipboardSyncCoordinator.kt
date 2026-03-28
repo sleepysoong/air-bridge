@@ -1,5 +1,6 @@
 package com.airbridge.app.feature.clipboard
 
+import com.airbridge.app.data.storage.ClipboardSyncStateStore
 import com.airbridge.app.feature.common.ClipboardApplyOutcome
 import com.airbridge.app.feature.common.ClipboardOutboundSink
 import com.airbridge.app.feature.common.ClipboardReadOutcome
@@ -24,6 +25,7 @@ class ClipboardSyncCoordinator(
     private val readGateway: ClipboardReadGateway,
     private val applyGateway: ClipboardApplyGateway,
     private val outboundSink: ClipboardOutboundSink,
+    private val stateStore: ClipboardSyncStateStore,
     private val scope: CoroutineScope,
     private val monitorInterval: Duration = 1500.milliseconds,
     private val clock: Clock = Clock.systemUTC(),
@@ -31,8 +33,8 @@ class ClipboardSyncCoordinator(
     private val stateMutex = Mutex()
     private val mutableStatus = MutableStateFlow(ClipboardSyncStatus())
     private var monitorJob: Job? = null
-    private var lastSentFingerprint: String? = null
-    private var lastAppliedFingerprint: String? = null
+    private var lastSentFingerprint: String? = stateStore.readLastSentFingerprint()
+    private var lastAppliedFingerprint: String? = stateStore.readLastAppliedFingerprint()
 
     val status: StateFlow<ClipboardSyncStatus> = mutableStatus.asStateFlow()
 
@@ -66,6 +68,7 @@ class ClipboardSyncCoordinator(
         stateMutex.withLock {
             lastSentFingerprint = null
             lastAppliedFingerprint = null
+            stateStore.clear()
             mutableStatus.value = ClipboardSyncStatus(isMonitoring = monitorJob?.isActive == true)
         }
     }
@@ -88,6 +91,7 @@ class ClipboardSyncCoordinator(
             when (outcome) {
                 ClipboardApplyOutcome.Applied -> {
                     lastAppliedFingerprint = snapshot.fingerprint
+                    stateStore.writeLastAppliedFingerprint(snapshot.fingerprint)
                     mutableStatus.value = mutableStatus.value.copy(
                         lastAppliedAt = Instant.now(clock),
                         lastFingerprint = snapshot.fingerprint,
@@ -146,6 +150,7 @@ class ClipboardSyncCoordinator(
 
             outboundSink.publishClipboard(snapshot, origin)
             lastSentFingerprint = snapshot.fingerprint
+            stateStore.writeLastSentFingerprint(snapshot.fingerprint)
             mutableStatus.value = mutableStatus.value.copy(
                 lastCapturedAt = snapshot.capturedAt,
                 lastSentAt = Instant.now(clock),
