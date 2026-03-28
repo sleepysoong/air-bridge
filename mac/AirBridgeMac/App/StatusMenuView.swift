@@ -21,11 +21,9 @@ struct StatusMenuView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text("지속 시간: \(elapsedDurationText(since: pairedSession.pairedAt, now: context.date))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("지속 시간: \(elapsedDurationText(since: pairedSession.pairedAt, now: Date()))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Button("페어링 삭제", role: .destructive) {
                     Task {

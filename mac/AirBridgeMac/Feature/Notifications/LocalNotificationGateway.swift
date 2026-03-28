@@ -40,7 +40,7 @@ final class LocalNotificationGateway: Sendable {
 
             let content = UNMutableNotificationContent()
             let resolvedTitle = payload.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-            content.title = (resolvedTitle?.isEmpty == false) ? resolvedTitle! : payload.appName
+            content.title = resolvedTitle.flatMap { $0.isEmpty ? nil : $0 } ?? payload.appName
 
             let subtitleComponents = [
                 payload.appName.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -51,7 +51,7 @@ final class LocalNotificationGateway: Sendable {
             }
 
             let resolvedBody = payload.body?.trimmingCharacters(in: .whitespacesAndNewlines)
-            content.body = (resolvedBody?.isEmpty == false) ? resolvedBody! : "새 알림을 받아왔어요."
+            content.body = resolvedBody.flatMap { $0.isEmpty ? nil : $0 } ?? "새 알림을 받아왔어요."
             content.userInfo = [
                 "remote_identifier": payload.remoteIdentifier,
                 "app_name": payload.appName,
